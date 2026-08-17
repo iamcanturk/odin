@@ -141,6 +141,49 @@ export const generateCandidates = (eventId: string) =>
 export const fetchCandidates = (eventId: string) =>
   getJSON<Candidate[]>(`/events/${eventId}/candidates`);
 
+// ---- Tweet tester ----
+
+export interface TesterResponse {
+  viral_potential: number;
+  x_simulation: number;
+  personal_fit: number;
+  trend_fit: number;
+  novelty: number;
+  reply_potential: number;
+  bookmark_potential: number;
+  negative_risk: number;
+  probabilities: Record<string, number>;
+  strengths: string[];
+  weaknesses: string[];
+  scoring_version: string;
+  disclaimer: string;
+}
+
+export const analyzeText = (text: string) =>
+  send<TesterResponse>("/tester", "POST", { text });
+
+// ---- Style profile ----
+
+export interface StyleProfile {
+  key: string;
+  post_count: number;
+  features: Record<string, number | string[]>;
+  summary: string | null;
+  updated_at: string;
+}
+
+export async function fetchProfile(): Promise<StyleProfile | null> {
+  const res = await fetch(`${API_BASE}/profile`, {
+    headers: { Accept: "application/json" },
+    cache: "no-store",
+  });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`API ${res.status}: ${res.statusText}`);
+  return res.json() as Promise<StyleProfile>;
+}
+
+export const rebuildProfile = () => send<StyleProfile>("/profile/rebuild", "POST");
+
 // ---- Recommended action (PROJECT.md §31) ----
 
 export function recommendedAction(opportunity: number): { label: string; tone: string } {
