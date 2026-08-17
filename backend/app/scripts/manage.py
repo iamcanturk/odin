@@ -16,7 +16,7 @@ from app.models import Event, Source
 from app.models.enums import EventStatus, Priority, SourceType
 from app.pipeline.ingest import run_ingestion
 from app.pipeline.topics import apply_topic_matching
-from app.providers.factory import get_embedding_provider
+from app.providers.factory import get_embedding_provider, get_llm_provider
 
 DEFAULT_SOURCES = [
     {"name": "Hacker News", "type": SourceType.HACKERNEWS, "url": None, "category": "technology",
@@ -46,7 +46,9 @@ async def seed() -> None:
 
 async def ingest() -> None:
     async with async_session_factory() as session:
-        stats = await run_ingestion(session, get_embedding_provider())
+        stats = await run_ingestion(
+            session, get_embedding_provider(), llm=get_llm_provider()
+        )
     print(
         f"polled={stats.sources_polled} items={stats.items_created} "
         f"events_created={stats.events_created} events_updated={stats.events_updated} "

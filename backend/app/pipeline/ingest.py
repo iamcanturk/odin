@@ -13,6 +13,7 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.models import ContentItem, Event, Source
 from app.models.enums import EventStatus
@@ -23,10 +24,11 @@ from app.pipeline.clustering import (
     ClusterItem,
     score,
 )
+from app.pipeline.enrich import apply_enrichment
 from app.pipeline.text import keywords
 from app.pipeline.topics import apply_topic_matching
 from app.pipeline.trend import Mention, advance_status, compute_trend
-from app.providers.base import EmbeddingProvider
+from app.providers.base import EmbeddingProvider, LLMProvider
 from app.sources.base import SourceAdapter
 from app.sources.github import GitHubAdapter
 from app.sources.hackernews import HackerNewsAdapter
@@ -252,7 +254,11 @@ async def score_events(
 
 
 async def run_ingestion(
-    session: AsyncSession, embedder: EmbeddingProvider, *, now: datetime | None = None
+    session: AsyncSession,
+    embedder: EmbeddingProvider,
+    *,
+    llm: LLMProvider | None = None,
+    now: datetime | None = None,
 ) -> IngestStats:
     now = now or datetime.now(UTC)
     stats = IngestStats()
@@ -272,6 +278,10 @@ async def run_ingestion(
     affected = await assign_events(session, all_new, stats, now=now)
     await score_events(session, affected, stats, now=now)
     await apply_topic_matching(session, list(affected), embedder)
+    if llm is not None:
+        await apply_enrichment(
+            session, list(affected), llm, threshold=get_settings().enrich_trend_threshold
+        )
     await session.commit()
 
     log.info(
