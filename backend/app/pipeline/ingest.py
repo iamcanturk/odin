@@ -27,6 +27,7 @@ from app.pipeline.text import keywords
 from app.pipeline.trend import Mention, advance_status, compute_trend
 from app.providers.base import EmbeddingProvider
 from app.sources.base import SourceAdapter
+from app.sources.github import GitHubAdapter
 from app.sources.hackernews import HackerNewsAdapter
 from app.sources.reddit import RedditAdapter, parse_subreddits
 from app.sources.rss import RSSAdapter
@@ -53,6 +54,8 @@ def build_adapter(source: Source) -> SourceAdapter | None:
     if source.type == "reddit":
         # source.url holds the subreddit spec, e.g. "programming+technology".
         return RedditAdapter(parse_subreddits(source.url))
+    if source.type == "github":
+        return GitHubAdapter()
     return None
 
 
