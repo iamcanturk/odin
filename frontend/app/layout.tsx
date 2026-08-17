@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
@@ -33,9 +34,17 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
                 <div className="size-1.5 rounded-full bg-accent" />
               </div>
               <span className="font-mono text-sm tracking-[0.3em] text-text">ODIN</span>
-              <span className="text-muted text-xs tracking-widest uppercase">
-                Intelligence Console
-              </span>
+              <nav className="ml-auto flex items-center gap-5 text-sm">
+                <Link href="/" className="text-muted hover:text-text transition-colors">
+                  Console
+                </Link>
+                <Link href="/post-now" className="text-muted hover:text-text transition-colors">
+                  Post now
+                </Link>
+                <Link href="/topics" className="text-muted hover:text-text transition-colors">
+                  Topics
+                </Link>
+              </nav>
             </div>
           </header>
           <main className="flex-1 mx-auto w-full max-w-6xl px-6 py-8">{children}</main>
