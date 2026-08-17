@@ -17,6 +17,7 @@ from app.core.db import get_session
 from app.models import ContentItem, Source
 from app.models.enums import Priority, SourceType
 from app.pipeline.ingest import IngestStats, process_new_items
+from app.pipeline.posts import import_user_post
 from app.providers.factory import get_embedding_provider
 from app.schemas.x import XIngestBatch, XIngestItem, XIngestResult
 from app.sources.base import compute_content_hash
@@ -97,6 +98,11 @@ async def ingest_x(
         session.add(ci)
         created.append(ci)
     await session.flush()
+
+    # Import the user's own posts (+ metric snapshots) for style/performance analysis.
+    for item in batch.items:
+        if item.is_self:
+            await import_user_post(session, item)
 
     stats = IngestStats()
     await process_new_items(

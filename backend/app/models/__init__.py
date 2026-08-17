@@ -4,6 +4,7 @@ from app.models.associations import EventSource, EventTopic
 from app.models.content_candidate import ContentCandidate
 from app.models.content_item import ContentItem
 from app.models.event import Event
+from app.models.post import Post, PostMetric
 from app.models.source import Source
 from app.models.topic import Topic
 
@@ -13,6 +14,8 @@ __all__ = [
     "Event",
     "EventSource",
     "EventTopic",
+    "Post",
+    "PostMetric",
     "Source",
     "Topic",
 ]
