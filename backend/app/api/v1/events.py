@@ -1,0 +1,117 @@
+"""Events API: ranked list + detail with sources and items."""
+
+from __future__ import annotations
+
+import uuid
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.db import get_session
+from app.models import ContentItem, Event, Source
+from app.schemas.api import (
+    EventDetail,
+    EventItem,
+    EventList,
+    EventSourceRef,
+    EventSummary,
+)
+
+router = APIRouter(prefix="/events", tags=["events"])
+
+
+async def _counts(
+    session: AsyncSession, event_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, tuple[int, int]]:
+    """Return {event_id: (item_count, source_count)} for the given events."""
+    if not event_ids:
+        return {}
+    rows = await session.execute(
+        select(
+            ContentItem.event_id,
+            func.count(ContentItem.id),
+            func.count(func.distinct(ContentItem.source_id)),
+        )
+        .where(ContentItem.event_id.in_(event_ids))
+        .group_by(ContentItem.event_id)
+    )
+    return {r[0]: (r[1], r[2]) for r in rows}
+
+
+@router.get("", response_model=EventList)
+async def list_events(
+    session: AsyncSession = Depends(get_session),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    status: str | None = Query(None),
+    order_by: str = Query("trend_score", pattern="^(trend_score|opportunity_score|last_seen_at)$"),
+) -> EventList:
+    filters = []
+    if status:
+        filters.append(Event.status == status)
+
+    total = await session.scalar(select(func.count(Event.id)).where(*filters)) or 0
+
+    order_col = {
+        "trend_score": Event.trend_score,
+        "opportunity_score": Event.opportunity_score,
+        "last_seen_at": Event.last_seen_at,
+    }[order_by]
+
+    rows = await session.execute(
+        select(Event).where(*filters).order_by(order_col.desc()).limit(limit).offset(offset)
+    )
+    events = list(rows.scalars())
+    counts = await _counts(session, [e.id for e in events])
+
+    items = []
+    for e in events:
+        item_count, source_count = counts.get(e.id, (0, 0))
+        summary = EventSummary.model_validate(e)
+        summary.item_count = item_count
+        summary.source_count = source_count
+        items.append(summary)
+
+    return EventList(total=total, items=items)
+
+
+@router.get("/{event_id}", response_model=EventDetail)
+async def get_event(
+    event_id: uuid.UUID, session: AsyncSession = Depends(get_session)
+) -> EventDetail:
+    event = await session.get(Event, event_id)
+    if event is None:
+        raise HTTPException(status_code=404, detail="Event not found")
+
+    rows = await session.execute(
+        select(ContentItem, Source)
+        .join(Source, ContentItem.source_id == Source.id)
+        .where(ContentItem.event_id == event_id)
+        .order_by(ContentItem.published_at.desc().nullslast())
+    )
+    pairs = list(rows)
+
+    detail = EventDetail.model_validate(event)
+    detail.item_count = len(pairs)
+
+    sources: dict[uuid.UUID, EventSourceRef] = {}
+    items: list[EventItem] = []
+    for item, src in pairs:
+        sources.setdefault(
+            src.id,
+            EventSourceRef(id=src.id, name=src.name, type=src.type, confidence=src.confidence),
+        )
+        items.append(
+            EventItem(
+                id=item.id,
+                title=item.title,
+                url=item.url,
+                source_name=src.name,
+                published_at=item.published_at,
+            )
+        )
+    detail.sources = list(sources.values())
+    detail.source_count = len(sources)
+    detail.items = items[:50]
+    return detail
