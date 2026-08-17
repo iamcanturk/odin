@@ -29,9 +29,10 @@ npm-debug.log*
 pnpm-debug.log*
 yarn-error.log*
 
-# ---- Models / caches ----
+# ---- Downloaded ML model weights / caches ----
 .cache/
-models/
+/models/
+backend/models/
 *.pt
 *.bin
 *.onnx
