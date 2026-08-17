@@ -151,3 +151,26 @@ class StyleProfileRead(ORMModel):
     features: dict[str, Any]
     summary: str | None = None
     updated_at: datetime
+
+
+# ---- Tweet tester ----
+
+
+class TesterRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=2000)
+
+
+class TesterResponse(BaseModel):
+    viral_potential: float
+    x_simulation: float
+    personal_fit: float
+    trend_fit: float
+    novelty: float
+    reply_potential: float
+    bookmark_potential: float
+    negative_risk: float
+    probabilities: dict[str, float]
+    strengths: list[str]
+    weaknesses: list[str]
+    scoring_version: str
+    disclaimer: str
