@@ -6,12 +6,14 @@ from datetime import UTC, datetime
 
 from sqlalchemy import func, select
 
-from app.models import ContentItem, Event, Source
+from app.models import ContentItem, Event, Source, Topic
 from app.models.enums import SourceType
 from app.pipeline.clustering import ClusterItem, cluster_items
+from app.pipeline.content import create_candidates
 from app.pipeline.ingest import run_ingestion
 from app.pipeline.text import keywords
 from app.pipeline.trend import Mention, compute_trend
+from app.providers.base import LLMProvider
 from app.providers.embedding import HashEmbeddingProvider
 from app.schemas.ingest import FetchResult, NormalizedItem
 from app.sources.base import SourceAdapter, compute_content_hash
@@ -113,3 +115,39 @@ async def test_ingestion_merges_same_url_and_is_idempotent(db_sessionmaker, monk
         assert second.items_created == 0
         assert second.events_created == 0
         assert await session.scalar(select(func.count(ContentItem.id))) == 2
+
+
+class _JSONLLM(LLMProvider):
+    """Returns valid enrichment JSON and distinct-enough post text."""
+
+    async def generate(self, prompt, *, system=None, temperature=0.7, max_tokens=512) -> str:
+        if "STRICT JSON" in (system or ""):
+            return '{"summary": "OpenAI shipped a new model.", "entities": ["OpenAI"]}'
+        line = next((ln for ln in prompt.splitlines() if ln.startswith("Task:")), "post")
+        return f"draft :: {line}"
+
+
+async def test_m1_personalization_and_content(db_sessionmaker, monkeypatch) -> None:
+    stub = _StubAdapter([_norm("OpenAI launches GPT-X model", "https://x.com/gpt", "g1")])
+    monkeypatch.setattr("app.pipeline.ingest.build_adapter", lambda source: stub)
+    embedder = HashEmbeddingProvider(dim=384)
+
+    async with db_sessionmaker() as session:
+        session.add(
+            Topic(name="AI", keywords=["openai", "gpt"], exclude_keywords=["crypto"])
+        )
+        session.add(Source(name="SourceA", type=SourceType.RSS, url="https://a/feed"))
+        await session.commit()
+
+        await run_ingestion(session, embedder, llm=_JSONLLM())
+
+        event = (await session.execute(select(Event))).scalar_one()
+        # Topic matched via the 'openai'/'gpt' include keywords -> personal relevance > 0.
+        assert event.personal_relevance > 0
+        # Opportunity computed and bounded.
+        assert 0.0 <= event.opportunity_score <= 100.0
+
+        # Content generation produces the full set of distinct ranked angles.
+        candidates = await create_candidates(session, event, _JSONLLM())
+        assert len(candidates) == 5
+        assert {c.rank for c in candidates} == {1, 2, 3, 4, 5}
