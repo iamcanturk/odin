@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { fetchEvent } from "@/lib/api";
+import { ContentPanel } from "./ContentPanel";
 import { ErrorState, LoadingState, Panel, ScoreMeter, StatusBadge } from "./ui";
 
 function VelocityRow({ label, value }: { label: string; value: number }) {
@@ -51,7 +52,7 @@ export function EventDetailView({ id }: { id: string }) {
             {data.summary && <p className="text-muted">{data.summary}</p>}
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <Panel className="p-4">
               <ScoreMeter label="Trend" score={data.trend_score} />
             </Panel>
@@ -59,9 +60,14 @@ export function EventDetailView({ id }: { id: string }) {
               <ScoreMeter label="Opportunity" score={data.opportunity_score} />
             </Panel>
             <Panel className="p-4">
+              <ScoreMeter label="Personal" score={data.personal_relevance} />
+            </Panel>
+            <Panel className="p-4">
               <ScoreMeter label="Confidence" score={data.confidence_score} />
             </Panel>
           </div>
+
+          <ContentPanel eventId={id} />
 
           <div className="grid gap-6 lg:grid-cols-3">
             <Panel className="p-5 lg:col-span-1">
