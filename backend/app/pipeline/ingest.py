@@ -254,6 +254,32 @@ async def score_events(
         )
 
 
+async def process_new_items(
+    session: AsyncSession,
+    new_items: list[ContentItem],
+    embedder: EmbeddingProvider,
+    stats: IngestStats,
+    *,
+    llm: LLMProvider | None = None,
+    now: datetime,
+) -> set[Event]:
+    """Shared post-ingest pipeline: embed → cluster → score → topics → opportunity → enrich.
+
+    Used by both polled ingestion and inbound (browser-extension) ingestion. Does NOT
+    commit — the caller controls the transaction.
+    """
+    await embed_items(new_items, embedder)
+    affected = await assign_events(session, new_items, stats, now=now)
+    await score_events(session, affected, stats, now=now)
+    await apply_topic_matching(session, list(affected), embedder)
+    await apply_opportunity(session, list(affected), now=now)
+    if llm is not None:
+        await apply_enrichment(
+            session, list(affected), llm, threshold=get_settings().enrich_trend_threshold
+        )
+    return affected
+
+
 async def run_ingestion(
     session: AsyncSession,
     embedder: EmbeddingProvider,
@@ -275,15 +301,7 @@ async def run_ingestion(
         except Exception as exc:  # noqa: BLE001 - record and continue other sources
             stats.errors.append(f"{source.name}: {exc}")
 
-    await embed_items(all_new, embedder)
-    affected = await assign_events(session, all_new, stats, now=now)
-    await score_events(session, affected, stats, now=now)
-    await apply_topic_matching(session, list(affected), embedder)
-    await apply_opportunity(session, list(affected), now=now)
-    if llm is not None:
-        await apply_enrichment(
-            session, list(affected), llm, threshold=get_settings().enrich_trend_threshold
-        )
+    await process_new_items(session, all_new, embedder, stats, llm=llm, now=now)
     await session.commit()
 
     log.info(
