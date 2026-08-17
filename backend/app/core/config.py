@@ -37,6 +37,8 @@ class Settings(BaseSettings):
     # Embeddings (local sentence-transformers)
     embedding_model: str = "intfloat/multilingual-e5-small"
     embedding_dim: int = Field(default=384)
+    # "local" = sentence-transformers (needs the `ml` extra); "hash" = deterministic fallback.
+    embedding_backend: str = "local"
 
     @property
     def cors_origins_list(self) -> list[str]:
