@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "ODIN X Collector",
+  "version": "0.1.0",
+  "description": "Collects X posts you view and sends them to your ODIN instance for analysis.",
+  "permissions": ["storage"],
+  "host_permissions": [
+    "https://x.com/*",
+    "https://twitter.com/*",
+    "http://localhost/*",
+    "https://odin.iamcanturk.dev/*"
+  ],
+  "background": {
+    "service_worker": "service-worker.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup/popup.html"
+  },
+  "options_page": "options/options.html",
+  "content_scripts": [
+    {
+      "matches": ["https://x.com/*", "https://twitter.com/*"],
+      "js": ["content/x-collector.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>ODIN X Collector — Settings</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        background: #0a0c10;
+        color: #e6e9ef;
+        margin: 0;
+        padding: 24px;
+        width: 360px;
+      }
+      h1 { font-size: 15px; letter-spacing: 0.2em; margin: 0 0 16px; }
+      label { display: block; font-size: 11px; text-transform: uppercase; color: #8b93a3; margin: 14px 0 4px; }
+      input {
+        width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 6px;
+        border: 1px solid #232833; background: #171b24; color: #e6e9ef; font-size: 13px;
+      }
+      button {
+        margin-top: 18px; padding: 8px 14px; border-radius: 6px; border: 1px solid #4f9dff66;
+        background: transparent; color: #4f9dff; font-size: 13px; cursor: pointer;
+      }
+      #status { font-size: 12px; color: #37d39b; margin-top: 10px; min-height: 16px; }
+    </style>
+  </head>
+  <body>
+    <h1>ODIN X COLLECTOR</h1>
+    <label for="endpoint">API base URL</label>
+    <input id="endpoint" placeholder="http://localhost:8000/api/v1" />
+    <label for="token">Ingest token</label>
+    <input id="token" type="password" placeholder="INGEST_TOKEN from your .env" />
+    <button id="save">Save settings</button>
+    <div id="status"></div>
+    <script src="options.js"></script>
+  </body>
+</html>
