@@ -44,8 +44,21 @@ cp .env.example .env                                   # fill in secrets
 
 ## Workflow
 
-Every change ships through **GitHub issue → branch → PR → merge**. `main` is protected and requires
-CI to pass. See open issues and the current milestone for what's in progress.
+Every change ships through **GitHub issue → branch → PR → merge**. `main` is protected (PRs required,
+no force-push). See open issues and the current milestone for what's in progress.
+
+### Verification (local)
+
+GitHub Actions is defined in `.github/workflows/ci.yml` but is currently **billing-blocked on the
+account**, so it does not run. Until that's resolved, quality is enforced locally:
+
+```bash
+make setup-hooks   # one-time: enables the .githooks pre-push hook
+make verify        # ruff + pytest + frontend lint (same checks CI runs)
+```
+
+The `pre-push` hook runs `make verify` automatically and blocks a push if anything fails. Once the
+Actions billing is restored, the workflow runs on every PR and can be made a required status check.
 
 ## Status
 

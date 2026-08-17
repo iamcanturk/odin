@@ -1,4 +1,4 @@
-.PHONY: help dev-up dev-down backend-install backend-run backend-lint backend-test frontend-install frontend-dev frontend-build lint
+.PHONY: help dev-up dev-down backend-install backend-run backend-lint backend-test frontend-install frontend-dev frontend-build lint verify setup-hooks
 
 help:
 	@echo "ODIN — common tasks"
@@ -42,3 +42,14 @@ frontend-build:
 
 lint: backend-lint
 	cd frontend && pnpm lint
+
+# Local CI replacement (GitHub Actions is billing-blocked). Run before pushing.
+verify:
+	cd backend && uv run ruff check .
+	cd backend && uv run pytest -q
+	cd frontend && pnpm lint
+
+# Install the committed git hooks (pre-push runs `make verify`).
+setup-hooks:
+	git config core.hooksPath .githooks
+	@echo "✓ git hooks enabled (.githooks). pre-push will run 'make verify'."

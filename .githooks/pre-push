@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Local CI replacement — runs while GitHub Actions is billing-blocked.
+# Enable with: make setup-hooks   (sets core.hooksPath to .githooks)
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root"
+
+echo "▶ pre-push: running local verification (ruff + pytest + frontend lint)…"
+make verify
+
+echo "✓ pre-push checks passed"
