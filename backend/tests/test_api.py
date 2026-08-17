@@ -71,6 +71,23 @@ async def test_sources_list(client: httpx.AsyncClient) -> None:
     assert isinstance(resp.json(), list)
 
 
+async def test_generate_and_list_candidates(client: httpx.AsyncClient) -> None:
+    listing = (await client.get("/api/v1/events", params={"limit": 1})).json()
+    if not listing["items"]:
+        pytest.skip("no events to generate for")
+    eid = listing["items"][0]["id"]
+
+    generated = await client.post(f"/api/v1/events/{eid}/generate")
+    assert generated.status_code == 201
+    cands = generated.json()
+    assert len(cands) >= 1
+    assert cands[0]["rank"] == 1  # ordered by rank
+
+    listed = await client.get(f"/api/v1/events/{eid}/candidates")
+    assert listed.status_code == 200
+    assert len(listed.json()) == len(cands)
+
+
 async def test_topic_crud_roundtrip(client: httpx.AsyncClient) -> None:
     name = f"pytest-{uuid.uuid4().hex[:8]}"
     created = await client.post(

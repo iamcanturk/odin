@@ -59,6 +59,22 @@ class EventList(BaseModel):
     items: list[EventSummary]
 
 
+class CandidateRead(ORMModel):
+    id: uuid.UUID
+    event_id: uuid.UUID
+    text: str
+    angle: str
+    platform: str
+    trend_score: float
+    personal_score: float
+    viral_score: float
+    source_confidence: float
+    novelty_score: float
+    risk_score: float
+    rank: int
+    model_version: str
+
+
 # ---- Sources ----
 
 

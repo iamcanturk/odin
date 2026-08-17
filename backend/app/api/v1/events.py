@@ -9,8 +9,11 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_session
-from app.models import ContentItem, Event, Source
+from app.models import ContentCandidate, ContentItem, Event, Source
+from app.pipeline.content import create_candidates
+from app.providers.factory import get_llm_provider
 from app.schemas.api import (
+    CandidateRead,
     EventDetail,
     EventItem,
     EventList,
@@ -115,3 +118,25 @@ async def get_event(
     detail.source_count = len(sources)
     detail.items = items[:50]
     return detail
+
+
+@router.post("/{event_id}/generate", response_model=list[CandidateRead], status_code=201)
+async def generate_event_content(
+    event_id: uuid.UUID, session: AsyncSession = Depends(get_session)
+) -> list[ContentCandidate]:
+    event = await session.get(Event, event_id)
+    if event is None:
+        raise HTTPException(status_code=404, detail="Event not found")
+    return await create_candidates(session, event, get_llm_provider())
+
+
+@router.get("/{event_id}/candidates", response_model=list[CandidateRead])
+async def list_event_candidates(
+    event_id: uuid.UUID, session: AsyncSession = Depends(get_session)
+) -> list[ContentCandidate]:
+    rows = await session.execute(
+        select(ContentCandidate)
+        .where(ContentCandidate.event_id == event_id)
+        .order_by(ContentCandidate.rank)
+    )
+    return list(rows.scalars())
