@@ -6,16 +6,20 @@ from datetime import UTC, datetime
 
 from sqlalchemy import func, select
 
-from app.models import ContentItem, Event, Source, Topic
+from app.models import ContentItem, Event, Post, Source, Topic
 from app.models.enums import SourceType
 from app.pipeline.clustering import ClusterItem, cluster_items
 from app.pipeline.content import create_candidates
 from app.pipeline.ingest import run_ingestion
+from app.pipeline.posts import import_user_post
+from app.pipeline.style import build_style_profile
+from app.pipeline.tester import analyze
 from app.pipeline.text import keywords
 from app.pipeline.trend import Mention, compute_trend
 from app.providers.base import LLMProvider
 from app.providers.embedding import HashEmbeddingProvider
 from app.schemas.ingest import FetchResult, NormalizedItem
+from app.schemas.x import XIngestItem, XMetrics
 from app.sources.base import SourceAdapter, compute_content_hash
 from app.sources.rss import parse_feed
 
@@ -151,3 +155,32 @@ async def test_m1_personalization_and_content(db_sessionmaker, monkeypatch) -> N
         candidates = await create_candidates(session, event, _JSONLLM())
         assert len(candidates) == 5
         assert {c.rank for c in candidates} == {1, 2, 3, 4, 5}
+
+
+async def test_m2_x_import_to_style_to_tester(db_sessionmaker) -> None:
+    """Inbound self-posts -> style profile (centroid) -> tester uses it."""
+    embedder = HashEmbeddingProvider(dim=384)
+    posts = [
+        "Why do most AI agent demos ignore infra cost? The real bottleneck is elsewhere.",
+        "How to actually ship an LLM feature: start with evals, not the model.",
+        "Hot take: RAG is overused. Better retrieval beats more context every time.",
+    ]
+    async with db_sessionmaker() as session:
+        for i, text in enumerate(posts):
+            await import_user_post(
+                session,
+                XIngestItem(id=f"p{i}", text=text, is_self=True, metrics=XMetrics(likes=10 * i)),
+            )
+        await session.commit()
+        assert await session.scalar(select(func.count(Post.id))) == 3
+
+        profile = await build_style_profile(session, embedder)
+        await session.commit()
+        assert profile.post_count == 3
+        assert profile.centroid is not None  # embedded the successful cluster
+
+        # The tester now derives personal fit from the style centroid (not the neutral default).
+        result = await analyze(session, "A fresh contrarian take on agent infrastructure", embedder)
+        assert result.personal_fit != 50.0
+        assert 0.0 <= result.viral_potential <= 100.0
+        assert result.disclaimer
