@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>ODIN</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        background: #0a0c10;
+        color: #e6e9ef;
+        margin: 0;
+        padding: 16px;
+        width: 240px;
+      }
+      h1 { font-size: 13px; letter-spacing: 0.25em; margin: 0 0 12px; }
+      .row { display: flex; align-items: center; justify-content: space-between; margin: 10px 0; font-size: 13px; }
+      .muted { color: #8b93a3; }
+      button {
+        padding: 6px 10px; border-radius: 6px; border: 1px solid #232833;
+        background: transparent; color: #e6e9ef; font-size: 12px; cursor: pointer;
+      }
+      #toggle.on { border-color: #37d39b66; color: #37d39b; }
+      #open-options { width: 100%; margin-top: 12px; border-color: #4f9dff66; color: #4f9dff; }
+    </style>
+  </head>
+  <body>
+    <h1>ODIN X COLLECTOR</h1>
+    <div class="row">
+      <span class="muted">Capturing</span>
+      <button id="toggle">…</button>
+    </div>
+    <div class="row">
+      <span class="muted">Posts sent</span>
+      <span id="sent">0</span>
+    </div>
+    <button id="open-options">Settings</button>
+    <script src="popup.js"></script>
+  </body>
+</html>
