@@ -1,4 +1,4 @@
-.PHONY: help dev-up dev-down backend-install backend-run backend-lint backend-test frontend-install frontend-dev frontend-build lint verify setup-hooks
+.PHONY: help dev-up dev-down backend-install backend-run backend-migrate worker seed ingest backend-lint backend-test frontend-install frontend-dev frontend-build lint verify setup-hooks
 
 help:
 	@echo "ODIN — common tasks"
@@ -24,6 +24,18 @@ backend-install:
 
 backend-run:
 	cd backend && uv run uvicorn app.main:app --reload
+
+backend-migrate:
+	cd backend && uv run alembic upgrade head
+
+worker:
+	cd backend && uv run arq app.workers.tasks.WorkerSettings
+
+seed:
+	cd backend && uv run python -m app.scripts.manage seed
+
+ingest:
+	cd backend && uv run python -m app.scripts.manage ingest
 
 backend-lint:
 	cd backend && uv run ruff check .
