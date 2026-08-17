@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 
@@ -15,6 +16,7 @@ from app.core.db import async_session_factory
 from app.models import Event, Source
 from app.models.enums import EventStatus, Priority, SourceType
 from app.pipeline.ingest import run_ingestion
+from app.pipeline.opportunity import apply_opportunity
 from app.pipeline.topics import apply_topic_matching
 from app.providers.factory import get_embedding_provider, get_llm_provider
 
@@ -67,6 +69,7 @@ async def rematch() -> None:
             ).scalars()
         )
         await apply_topic_matching(session, events, get_embedding_provider())
+        await apply_opportunity(session, events, now=datetime.now(UTC))
         await session.commit()
         print(f"rematched {len(events)} events")
 

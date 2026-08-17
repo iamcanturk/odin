@@ -25,6 +25,7 @@ from app.pipeline.clustering import (
     score,
 )
 from app.pipeline.enrich import apply_enrichment
+from app.pipeline.opportunity import apply_opportunity
 from app.pipeline.text import keywords
 from app.pipeline.topics import apply_topic_matching
 from app.pipeline.trend import Mention, advance_status, compute_trend
@@ -278,6 +279,7 @@ async def run_ingestion(
     affected = await assign_events(session, all_new, stats, now=now)
     await score_events(session, affected, stats, now=now)
     await apply_topic_matching(session, list(affected), embedder)
+    await apply_opportunity(session, list(affected), now=now)
     if llm is not None:
         await apply_enrichment(
             session, list(affected), llm, threshold=get_settings().enrich_trend_threshold
