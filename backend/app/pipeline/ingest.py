@@ -24,6 +24,7 @@ from app.pipeline.clustering import (
     score,
 )
 from app.pipeline.text import keywords
+from app.pipeline.topics import apply_topic_matching
 from app.pipeline.trend import Mention, advance_status, compute_trend
 from app.providers.base import EmbeddingProvider
 from app.sources.base import SourceAdapter
@@ -270,6 +271,7 @@ async def run_ingestion(
     await embed_items(all_new, embedder)
     affected = await assign_events(session, all_new, stats, now=now)
     await score_events(session, affected, stats, now=now)
+    await apply_topic_matching(session, list(affected), embedder)
     await session.commit()
 
     log.info(
