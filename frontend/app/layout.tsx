@@ -44,6 +44,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
                 <Link href="/topics" className="text-muted hover:text-text transition-colors">
                   Topics
                 </Link>
+                <Link href="/tester" className="text-muted hover:text-text transition-colors">
+                  Tester
+                </Link>
+                <Link href="/profile" className="text-muted hover:text-text transition-colors">
+                  Profile
+                </Link>
               </nav>
             </div>
           </header>
