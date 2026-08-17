@@ -35,6 +35,8 @@ class Settings(BaseSettings):
     llm_model: str = "deepseek-chat"
     # Only events at/above this trend score get LLM enrichment (cost control).
     enrich_trend_threshold: float = 50.0
+    # Shared token the browser extension must send to POST /api/v1/ingest/x. Empty = disabled.
+    ingest_token: str = ""
 
     # Embeddings (local sentence-transformers)
     embedding_model: str = "intfloat/multilingual-e5-small"
