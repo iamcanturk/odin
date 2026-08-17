@@ -8,6 +8,7 @@ This is NOT X's production model — UI-facing language must say "estimate".
 
 from __future__ import annotations
 
+import math
 import re
 from dataclasses import dataclass, field
 
@@ -26,8 +27,14 @@ WEIGHTS = {
     "negative": -74.0,
 }
 
-# Rough max of the positive weighted sum, used to normalize to 0-100.
-_NORM_MAX = 6.0
+# Map the (possibly negative) weighted sum to 0-100 with a sigmoid so scores spread
+# usefully instead of collapsing to 0 whenever the large negative weight bites.
+_SIG_MID = 0.5
+_SIG_STEEP = 2.6
+
+
+def _to_score(raw: float) -> float:
+    return round(100.0 / (1.0 + math.exp(-_SIG_STEEP * (raw - _SIG_MID))), 2)
 
 _WORD_RE = re.compile(r"[A-Za-z0-9']+")
 _CONTRARIAN = ("wrong", "unpopular", "hot take", "nobody", "stop", "myth", "actually", "overrated")
@@ -78,14 +85,16 @@ def extract_features(text: str) -> Features:
 def action_probabilities(f: Features, *, trend_fit: float, personal_fit: float) -> dict[str, float]:
     tf, pf = _clamp(trend_fit), _clamp(personal_fit)
     return {
-        "like": _clamp(0.06 + 0.04 * f.hook + 0.03 * tf + 0.03 * pf - 0.02 * f.has_link),
-        "reply": _clamp(0.01 + 0.06 * f.has_question + 0.05 * f.controversy),
+        "like": _clamp(0.08 + 0.04 * f.hook + 0.03 * tf + 0.03 * pf - 0.02 * f.has_link),
+        "reply": _clamp(0.015 + 0.06 * f.has_question + 0.05 * f.controversy),
         "repost": _clamp(0.01 + 0.02 * f.hook + 0.02 * tf + 0.02 * f.has_number),
         "profile_click": _clamp(0.01 + 0.02 * pf + 0.02 * f.hook),
         "good_click": _clamp(0.02 + 0.02 * f.has_link + 0.02 * tf),
         "bookmark": _clamp(0.02 + 0.03 * f.has_number + 0.02 * tf),
         "follow": _clamp(0.002 + 0.012 * pf),
-        "negative": _clamp(0.005 + 0.035 * f.controversy + 0.02 * f.has_link),
+        # Negative-action probability is genuinely tiny — keep it small so the large
+        # negative weight doesn't swamp the score.
+        "negative": _clamp(0.002 + 0.010 * f.controversy + 0.008 * f.has_link),
     }
 
 
@@ -93,7 +102,7 @@ def simulate(text: str, *, trend_fit: float = 0.0, personal_fit: float = 0.0) ->
     f = extract_features(text)
     probs = action_probabilities(f, trend_fit=trend_fit, personal_fit=personal_fit)
     raw = sum(WEIGHTS[k] * probs[k] for k in WEIGHTS)
-    sim = round(100.0 * _clamp(raw / _NORM_MAX), 2)
+    sim = _to_score(raw)
 
     notes: list[str] = []
     if f.has_question:
