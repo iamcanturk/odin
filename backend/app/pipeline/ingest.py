@@ -28,6 +28,7 @@ from app.pipeline.trend import Mention, advance_status, compute_trend
 from app.providers.base import EmbeddingProvider
 from app.sources.base import SourceAdapter
 from app.sources.hackernews import HackerNewsAdapter
+from app.sources.reddit import RedditAdapter, parse_subreddits
 from app.sources.rss import RSSAdapter
 
 log = get_logger("odin.ingest")
@@ -49,6 +50,9 @@ def build_adapter(source: Source) -> SourceAdapter | None:
         return RSSAdapter(source.url, name=source.name)
     if source.type == "hackernews":
         return HackerNewsAdapter()
+    if source.type == "reddit":
+        # source.url holds the subreddit spec, e.g. "programming+technology".
+        return RedditAdapter(parse_subreddits(source.url))
     return None
 
 
