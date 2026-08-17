@@ -12,9 +12,10 @@ import asyncio
 from sqlalchemy import select
 
 from app.core.db import async_session_factory
-from app.models import Source
-from app.models.enums import Priority, SourceType
+from app.models import Event, Source
+from app.models.enums import EventStatus, Priority, SourceType
 from app.pipeline.ingest import run_ingestion
+from app.pipeline.topics import apply_topic_matching
 from app.providers.factory import get_embedding_provider
 
 DEFAULT_SOURCES = [
@@ -53,11 +54,30 @@ async def ingest() -> None:
     )
 
 
+async def rematch() -> None:
+    """Re-run topic matching over all non-archived events (e.g. after editing topics)."""
+    async with async_session_factory() as session:
+        events = list(
+            (
+                await session.execute(
+                    select(Event).where(Event.status != EventStatus.ARCHIVED)
+                )
+            ).scalars()
+        )
+        await apply_topic_matching(session, events, get_embedding_provider())
+        await session.commit()
+        print(f"rematched {len(events)} events")
+
+
+async def _dispatch(command: str) -> None:
+    await {"seed": seed, "ingest": ingest, "rematch": rematch}[command]()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="ODIN management commands")
-    parser.add_argument("command", choices=["seed", "ingest"])
+    parser.add_argument("command", choices=["seed", "ingest", "rematch"])
     args = parser.parse_args()
-    asyncio.run(seed() if args.command == "seed" else ingest())
+    asyncio.run(_dispatch(args.command))
 
 
 if __name__ == "__main__":

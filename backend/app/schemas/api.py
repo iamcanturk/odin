@@ -24,6 +24,7 @@ class EventSummary(ORMModel):
     trend_score: float
     opportunity_score: float
     confidence_score: float
+    personal_relevance: float = 0.0
     first_seen_at: datetime
     last_seen_at: datetime
     source_count: int = 0

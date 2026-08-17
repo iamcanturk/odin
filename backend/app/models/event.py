@@ -42,6 +42,8 @@ class Event(TimestampMixin, Base):
     trend_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0, index=True)
     opportunity_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0, index=True)
     confidence_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    # Best topic match for the user, 0-100 (PROJECT.md §14). Set by topic matching.
+    personal_relevance: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     scoring_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
     # Cluster centroid embedding — used to match new items to this event.
