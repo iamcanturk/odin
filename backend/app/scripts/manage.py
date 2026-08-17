@@ -17,6 +17,7 @@ from app.models import Event, Source
 from app.models.enums import EventStatus, Priority, SourceType
 from app.pipeline.ingest import run_ingestion
 from app.pipeline.opportunity import apply_opportunity
+from app.pipeline.style import build_style_profile
 from app.pipeline.topics import apply_topic_matching
 from app.providers.factory import get_embedding_provider, get_llm_provider
 
@@ -74,13 +75,21 @@ async def rematch() -> None:
         print(f"rematched {len(events)} events")
 
 
+async def style() -> None:
+    """Recompute the writing-style fingerprint from imported posts."""
+    async with async_session_factory() as session:
+        profile = await build_style_profile(session, get_embedding_provider())
+        await session.commit()
+        print(f"style profile rebuilt from {profile.post_count} posts: {profile.summary}")
+
+
 async def _dispatch(command: str) -> None:
-    await {"seed": seed, "ingest": ingest, "rematch": rematch}[command]()
+    await {"seed": seed, "ingest": ingest, "rematch": rematch, "style": style}[command]()
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="ODIN management commands")
-    parser.add_argument("command", choices=["seed", "ingest", "rematch"])
+    parser.add_argument("command", choices=["seed", "ingest", "rematch", "style"])
     args = parser.parse_args()
     asyncio.run(_dispatch(args.command))
 

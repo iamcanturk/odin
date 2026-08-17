@@ -140,3 +140,14 @@ class TopicUpdate(BaseModel):
     exclude_keywords: list[str] | None = None
     priority: str | None = None
     enabled: bool | None = None
+
+
+# ---- Style profile ----
+
+
+class StyleProfileRead(ORMModel):
+    key: str
+    post_count: int
+    features: dict[str, Any]
+    summary: str | None = None
+    updated_at: datetime
