@@ -33,6 +33,8 @@ class Settings(BaseSettings):
     llm_api_key: str = ""
     llm_base_url: str = "https://api.deepseek.com"
     llm_model: str = "deepseek-chat"
+    # Only events at/above this trend score get LLM enrichment (cost control).
+    enrich_trend_threshold: float = 50.0
 
     # Embeddings (local sentence-transformers)
     embedding_model: str = "intfloat/multilingual-e5-small"

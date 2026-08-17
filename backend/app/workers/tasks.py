@@ -14,14 +14,16 @@ from app.core.config import get_settings
 from app.core.db import async_session_factory
 from app.core.logging import configure_logging, get_logger
 from app.pipeline.ingest import run_ingestion
-from app.providers.factory import get_embedding_provider
+from app.providers.factory import get_embedding_provider, get_llm_provider
 
 log = get_logger("odin.worker")
 
 
 async def poll_sources(ctx: dict[str, Any]) -> dict[str, Any]:
     async with async_session_factory() as session:
-        stats = await run_ingestion(session, get_embedding_provider())
+        stats = await run_ingestion(
+            session, get_embedding_provider(), llm=get_llm_provider()
+        )
     return {
         "sources_polled": stats.sources_polled,
         "items_created": stats.items_created,
