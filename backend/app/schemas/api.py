@@ -211,3 +211,24 @@ class ApproveResponse(BaseModel):
 
 class MarkPostedRequest(BaseModel):
     external_id: str = Field(min_length=1, max_length=128)
+
+
+# ---- Evaluation ----
+
+
+class EvaluationItem(BaseModel):
+    post_id: str
+    text: str
+    predicted_likes: int
+    actual_likes: int
+    abs_error: int
+    error_pct: float
+    viral_score: float
+
+
+class EvaluationSummary(BaseModel):
+    evaluated: int
+    mae: float
+    rmse: float
+    precision_at_3: float | None = None
+    items: list[EvaluationItem]
