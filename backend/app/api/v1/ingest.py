@@ -16,6 +16,7 @@ from app.core.config import get_settings
 from app.core.db import get_session
 from app.models import ProfileSnapshot, StyleReference
 from app.pipeline.posts import import_user_post
+from app.pipeline.watch import posts_due
 from app.schemas.x import (
     XIngestBatch,
     XIngestResult,
@@ -57,6 +58,28 @@ async def ingest_x(
         duplicates=len(batch.items) - imported,
         events_created=0,
     )
+
+
+@router.get("/x/watch")
+async def x_watch(
+    session: AsyncSession = Depends(get_session),
+    x_ingest_token: str | None = Header(default=None, alias="X-Ingest-Token"),
+) -> dict[str, object]:
+    """Does any of the user's posts need a fresh metric sample? (PROJECT.md §12)
+
+    The extension polls this on a timer and only does work when something is due, so the
+    first hour after posting gets sampled densely without hammering X the rest of the time.
+    """
+    _verify_token(x_ingest_token)
+    status = await posts_due(session)
+    return {
+        "due": status.due,
+        "tracking": status.tracking,
+        "items": [
+            {"external_id": i.external_id, "age_minutes": i.age_minutes, "samples": i.samples}
+            for i in status.items
+        ],
+    }
 
 
 @router.post("/x/style", status_code=201)

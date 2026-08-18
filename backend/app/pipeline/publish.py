@@ -8,6 +8,7 @@ then linked back via the X post id.
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
 
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -116,4 +117,10 @@ async def mark_posted(session: AsyncSession, post_id: uuid.UUID, external_id: st
 
     post.external_id = external_id
     post.status = "posted"
+    if post.posted_at is None:
+        # Starts the metric-sampling clock — without this the post is never tracked.
+        now = datetime.now(UTC)
+        post.posted_at = now
+        post.hour = now.hour
+        post.day_of_week = now.weekday()
     return post

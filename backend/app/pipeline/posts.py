@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -9,6 +11,10 @@ from app.models import Post, PostMetric
 from app.schemas.x import XIngestItem
 
 _METRIC_FIELDS = ("impressions", "likes", "replies", "reposts", "bookmarks")
+
+# Browsing your own profile fires repeated scans; without a floor an unchanged reading
+# would be stored every few seconds. Just under the 5-minute sampling cadence.
+MIN_SNAPSHOT_GAP = timedelta(minutes=4)
 
 
 def _contains_link(item: XIngestItem) -> bool:
@@ -47,7 +53,6 @@ async def import_user_post(
     if all(v is None for v in snapshot.values()):
         return post
 
-    # Append only when values differ from the latest snapshot (idempotent when unchanged).
     latest = (
         await session.execute(
             select(PostMetric)
@@ -56,8 +61,19 @@ async def import_user_post(
             .limit(1)
         )
     ).scalar_one_or_none()
-    if latest is not None and all(getattr(latest, f) == snapshot[f] for f in _METRIC_FIELDS):
-        return post
+
+    # Append when the values changed, OR when enough time has passed that this counts as a
+    # new point on the curve. A flat reading is real data ("still 42 likes at T+30m"), and
+    # it's also what tells the scheduler this post was checked — without it, posts_due
+    # would see no recent sample and re-poll forever.
+    if latest is not None:
+        unchanged = all(getattr(latest, f) == snapshot[f] for f in _METRIC_FIELDS)
+        captured = latest.captured_at
+        if captured is not None and captured.tzinfo is None:
+            captured = captured.replace(tzinfo=UTC)
+        too_soon = captured is not None and (datetime.now(UTC) - captured) < MIN_SNAPSHOT_GAP
+        if unchanged and too_soon:
+            return post
 
     session.add(PostMetric(post_id=post.id, **snapshot))
     return post

@@ -134,6 +134,12 @@ const M: Record<string, { tr: string; en: string }> = {
   "pf.mReposts": { tr: "RT", en: "reposts" },
   "pf.mReplies": { tr: "yanıt", en: "replies" },
   "pf.mViews": { tr: "görüntülenme", en: "views" },
+  "pf.firstHour": { tr: "İlk saat", en: "First hour" },
+  "pf.samples": { tr: "{n} ölçüm", en: "{n} samples" },
+  "pf.tracking": {
+    tr: "Uzantı ilk saat 5 dakikada bir, sonra seyrelterek ölçüyor.",
+    en: "The extension samples every 5 min for the first hour, then backs off.",
+  },
 
   // best time to post
   "tm.title": { tr: "En iyi paylaşım zamanı", en: "Best time to post" },

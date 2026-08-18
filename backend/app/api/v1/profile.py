@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import UTC
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,7 +12,13 @@ from app.core.db import get_session
 from app.models import Post, PostMetric, ProfileSnapshot, StyleProfile
 from app.pipeline.style import build_style_profile
 from app.providers.factory import get_embedding_provider
-from app.schemas.api import ImportedTweet, ProfileGrowth, ProfilePoint, StyleProfileRead
+from app.schemas.api import (
+    ImportedTweet,
+    MetricPoint,
+    ProfileGrowth,
+    ProfilePoint,
+    StyleProfileRead,
+)
 
 router = APIRouter(prefix="/profile", tags=["profile"])
 
@@ -33,14 +41,38 @@ async def imported_tweets(
     )
     out: list[ImportedTweet] = []
     for p in posts:
-        latest = (
-            await session.execute(
-                select(PostMetric)
-                .where(PostMetric.post_id == p.id)
-                .order_by(PostMetric.captured_at.desc())
-                .limit(1)
+        snapshots = list(
+            (
+                await session.execute(
+                    select(PostMetric)
+                    .where(PostMetric.post_id == p.id)
+                    .order_by(PostMetric.captured_at.asc())
+                )
+            ).scalars()
+        )
+        latest = snapshots[-1] if snapshots else None
+        posted = p.posted_at
+        if posted is not None and posted.tzinfo is None:
+            posted = posted.replace(tzinfo=UTC)
+        history = []
+        for m in snapshots:
+            captured = m.captured_at
+            if captured is not None and captured.tzinfo is None:
+                captured = captured.replace(tzinfo=UTC)
+            history.append(
+                MetricPoint(
+                    captured_at=captured,
+                    minutes_after_post=(
+                        int((captured - posted).total_seconds() // 60)
+                        if posted and captured
+                        else None
+                    ),
+                    likes=m.likes,
+                    reposts=m.reposts,
+                    replies=m.replies,
+                    impressions=m.impressions,
+                )
             )
-        ).scalar_one_or_none()
         out.append(
             ImportedTweet(
                 id=p.id,
@@ -53,6 +85,7 @@ async def imported_tweets(
                 replies=latest.replies if latest else None,
                 bookmarks=latest.bookmarks if latest else None,
                 impressions=latest.impressions if latest else None,
+                history=history,
             )
         )
     return out
