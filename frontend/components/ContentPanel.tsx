@@ -9,6 +9,7 @@ import {
   type ApproveResponse,
   type Candidate,
   type TweetKind,
+  type TweetLength,
 } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { Panel } from "./ui";
@@ -21,12 +22,42 @@ function scoreColor(score: number): string {
   return "var(--accent)";
 }
 
-function CandidateCard({ c, eventId }: { c: Candidate; eventId: string }) {
+function CopyButton({ text, label }: { text: string; label: string }) {
+  const { t } = useI18n();
+  const [done, setDone] = useState(false);
+  return (
+    <button
+      onClick={async () => {
+        try {
+          await navigator.clipboard.writeText(text);
+          setDone(true);
+          setTimeout(() => setDone(false), 1500);
+        } catch {
+          /* clipboard blocked — ignore */
+        }
+      }}
+      className="rounded border border-border px-2 py-1 text-[11px] text-muted hover:text-text hover:border-accent/50 transition-colors"
+    >
+      {done ? t("cp.copied") : label}
+    </button>
+  );
+}
+
+function CandidateCard({
+  c,
+  eventId,
+  sourceUrl,
+}: {
+  c: Candidate;
+  eventId: string;
+  sourceUrl?: string | null;
+}) {
   const { t } = useI18n();
   const approve = useMutation<ApproveResponse, Error, void>({
     mutationFn: () => approveCandidate(eventId, c.id),
   });
   const pred = approve.data?.prediction;
+  const withSource = sourceUrl ? `${c.text}\n\n${sourceUrl}` : c.text;
 
   return (
     <Panel className="p-4">
@@ -42,15 +73,16 @@ function CandidateCard({ c, eventId }: { c: Candidate; eventId: string }) {
         </span>
       </div>
       <p className="text-sm text-text mt-2 whitespace-pre-wrap">{c.text}</p>
-      <div className="flex items-center justify-between gap-4 mt-3">
-        <div className="flex gap-4 text-[10px] text-muted font-mono">
+      <div className="flex flex-wrap items-center gap-2 mt-3">
+        <CopyButton text={c.text} label={t("cp.copy")} />
+        {sourceUrl && <CopyButton text={withSource} label={t("cp.copySource")} />}
+        <div className="flex gap-3 text-[10px] text-muted font-mono ml-auto">
           <span>trend {c.trend_score.toFixed(0)}</span>
           <span>you {c.personal_score.toFixed(0)}</span>
-          <span>novelty {(c.novelty_score * 100).toFixed(0)}</span>
           <span>risk {(c.risk_score * 100).toFixed(0)}</span>
         </div>
         {pred ? (
-          <span className="text-[10px] font-mono text-good">
+          <span className="text-[10px] font-mono text-good w-full text-right">
             ✓ {t("cp.approvedLikes", { n: pred.predicted_likes ?? 0 })}
           </span>
         ) : (
@@ -67,11 +99,12 @@ function CandidateCard({ c, eventId }: { c: Candidate; eventId: string }) {
   );
 }
 
-export function ContentPanel({ eventId }: { eventId: string }) {
+export function ContentPanel({ eventId, sourceUrl }: { eventId: string; sourceUrl?: string | null }) {
   const { t, locale } = useI18n();
   const qc = useQueryClient();
   const [lang, setLang] = useState<"tr" | "en">(locale === "en" ? "en" : "tr");
   const [kind, setKind] = useState<TweetKind>("");
+  const [length, setLength] = useState<TweetLength>("short");
 
   const { data } = useQuery({
     queryKey: ["candidates", eventId],
@@ -79,7 +112,7 @@ export function ContentPanel({ eventId }: { eventId: string }) {
   });
 
   const generate = useMutation({
-    mutationFn: () => generateCandidates(eventId, { language: lang, kind }),
+    mutationFn: () => generateCandidates(eventId, { language: lang, kind, length }),
     onSuccess: (candidates) => qc.setQueryData(["candidates", eventId], candidates),
   });
 
@@ -118,6 +151,19 @@ export function ContentPanel({ eventId }: { eventId: string }) {
               ))}
             </select>
           </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-[10px] uppercase tracking-widest text-muted">
+              {t("cp.length")}
+            </span>
+            <select
+              value={length}
+              onChange={(e) => setLength(e.target.value as TweetLength)}
+              className={selectCls}
+            >
+              <option value="short">{t("cp.length.short")}</option>
+              <option value="long">{t("cp.length.long")}</option>
+            </select>
+          </label>
           <button
             onClick={() => generate.mutate()}
             disabled={generate.isPending}
@@ -141,7 +187,7 @@ export function ContentPanel({ eventId }: { eventId: string }) {
       ) : (
         <div className="grid gap-3">
           {candidates.map((c) => (
-            <CandidateCard key={c.id} c={c} eventId={eventId} />
+            <CandidateCard key={c.id} c={c} eventId={eventId} sourceUrl={sourceUrl} />
           ))}
         </div>
       )}

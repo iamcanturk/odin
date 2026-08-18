@@ -181,13 +181,16 @@ async def generate_event_content(
     session: AsyncSession = Depends(get_session),
     language: str = Query("", pattern="^(en|tr|)$"),
     kind: str = Query("", pattern="^(breaking|contrarian|technical|educational|question|)$"),
+    length: str = Query("short", pattern="^(short|long)$"),
 ) -> list[ContentCandidate]:
     event = await session.get(Event, event_id)
     if event is None:
         raise HTTPException(status_code=404, detail="Event not found")
     lang = language or get_settings().content_language
     angles = [kind] if kind else None
-    return await create_candidates(session, event, get_llm_provider(), language=lang, angles=angles)
+    return await create_candidates(
+        session, event, get_llm_provider(), language=lang, angles=angles, length=length
+    )
 
 
 @router.post("/{event_id}/dismiss", status_code=200)
@@ -210,7 +213,7 @@ async def list_event_candidates(
     rows = await session.execute(
         select(ContentCandidate)
         .where(ContentCandidate.event_id == event_id)
-        .order_by(ContentCandidate.rank)
+        .order_by(ContentCandidate.created_at.desc(), ContentCandidate.rank)
     )
     return list(rows.scalars())
 

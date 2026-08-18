@@ -300,6 +300,12 @@ const M: Record<string, { tr: string; en: string }> = {
   "cp.kind.technical": { tr: "Teknik detay", en: "Technical" },
   "cp.kind.educational": { tr: "Öğretici", en: "Educational" },
   "cp.kind.question": { tr: "Soru / tartışma", en: "Question" },
+  "cp.length": { tr: "Uzunluk", en: "Length" },
+  "cp.length.short": { tr: "Kısa (≤280)", en: "Short (≤280)" },
+  "cp.length.long": { tr: "Uzun", en: "Long" },
+  "cp.copy": { tr: "Kopyala", en: "Copy" },
+  "cp.copySource": { tr: "Kaynakla kopyala", en: "Copy + source" },
+  "cp.copied": { tr: "Kopyalandı ✓", en: "Copied ✓" },
   "cp.regenerate": { tr: "Yeniden üret", en: "Regenerate" },
   "cp.generating": { tr: "Üretiliyor…", en: "Generating…" },
   "cp.none": {
