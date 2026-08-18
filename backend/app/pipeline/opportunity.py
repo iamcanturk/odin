@@ -25,6 +25,21 @@ W_COMPETITION = 0.05
 
 FRESH_WINDOW_HOURS = 24.0
 COMPETITION_TARGET = 6  # more distinct sources => more competition => lower opportunity
+GAP_SPREAD_TARGET = 4  # sources covering an event for it to count as "everyone talking"
+GAP_DEPTH_K = 300  # chars; items much shorter than this read as shallow
+
+
+def content_gap(source_count: int, avg_item_len: float) -> float:
+    """Content gap (PROJECT.md §22): high when many sources cover an event shallowly.
+
+    everyone talking (spread) + little depth (short items) => opportunity to explain better.
+    """
+    if avg_item_len <= 0:
+        return 0.0  # no text to assess depth
+    spread = min(1.0, source_count / GAP_SPREAD_TARGET)
+    depth = avg_item_len / (avg_item_len + GAP_DEPTH_K)
+    shallowness = 1.0 - depth
+    return round(max(0.0, min(1.0, spread * shallowness)), 3)
 
 
 @dataclass
@@ -94,6 +109,7 @@ async def apply_opportunity(
                 select(
                     func.avg(Source.confidence),
                     func.count(func.distinct(Source.id)),
+                    func.avg(func.coalesce(func.length(ContentItem.text), 0)),
                 )
                 .select_from(ContentItem)
                 .join(Source, ContentItem.source_id == Source.id)
@@ -102,6 +118,7 @@ async def apply_opportunity(
         ).one()
         avg_conf = float(row[0]) if row[0] is not None else 0.6
         source_count = int(row[1] or 1)
+        avg_item_len = float(row[2] or 0)
 
         acceleration = float((event.velocity or {}).get("acceleration", 0.0))
         age_hours = (now - event.first_seen_at).total_seconds() / 3600
@@ -114,6 +131,7 @@ async def apply_opportunity(
                 acceleration=acceleration,
                 source_confidence=avg_conf,
                 source_count=source_count,
+                content_gap=content_gap(source_count, avg_item_len),
             )
         )
         event.opportunity_score = result.opportunity_score

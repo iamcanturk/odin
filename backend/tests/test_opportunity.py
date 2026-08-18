@@ -6,7 +6,21 @@ from app.pipeline.opportunity import (
     OPPORTUNITY_VERSION,
     OpportunityInputs,
     compute_opportunity,
+    content_gap,
 )
+
+
+def test_content_gap_high_when_spread_and_shallow() -> None:
+    # Many sources, very short items -> big gap to explain it well.
+    high = content_gap(source_count=5, avg_item_len=40)
+    # One source, long deep item -> low gap.
+    low = content_gap(source_count=1, avg_item_len=1200)
+    assert high > low
+    assert 0.0 <= high <= 1.0 and 0.0 <= low <= 1.0
+
+
+def test_content_gap_zero_when_no_items() -> None:
+    assert content_gap(source_count=3, avg_item_len=0) == 0.0
 
 
 def test_version_tag() -> None:
