@@ -46,6 +46,8 @@ class EventSummary(ORMModel):
     last_seen_at: datetime
     source_count: int = 0
     item_count: int = 0
+    source_types: list[str] = Field(default_factory=list)
+    topics: list[str] = Field(default_factory=list)
 
 
 class EventItem(ORMModel):

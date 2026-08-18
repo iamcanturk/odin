@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.db import get_session
-from app.models import ContentCandidate, ContentItem, Event, Source
+from app.models import ContentCandidate, ContentItem, Event, EventTopic, Source, Topic
 from app.pipeline.content import create_candidates
 from app.pipeline.publish import approve_candidate
 from app.providers.factory import get_llm_provider
@@ -47,6 +47,44 @@ async def _counts(
     return {r[0]: (r[1], r[2]) for r in rows}
 
 
+async def _source_types(
+    session: AsyncSession, event_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, list[str]]:
+    """Return {event_id: [distinct source types]} — where each opportunity comes from."""
+    if not event_ids:
+        return {}
+    rows = await session.execute(
+        select(ContentItem.event_id, Source.type)
+        .join(Source, ContentItem.source_id == Source.id)
+        .where(ContentItem.event_id.in_(event_ids))
+        .distinct()
+    )
+    out: dict[uuid.UUID, list[str]] = {}
+    for event_id, stype in rows:
+        out.setdefault(event_id, [])
+        if stype not in out[event_id]:
+            out[event_id].append(stype)
+    return out
+
+
+async def _matched_topics(
+    session: AsyncSession, event_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, list[str]]:
+    """Return {event_id: [matched topic names]} — why an event is relevant to the user."""
+    if not event_ids:
+        return {}
+    rows = await session.execute(
+        select(EventTopic.event_id, Topic.name)
+        .join(Topic, EventTopic.topic_id == Topic.id)
+        .where(EventTopic.event_id.in_(event_ids), EventTopic.relevance > 0)
+        .order_by(EventTopic.relevance.desc())
+    )
+    out: dict[uuid.UUID, list[str]] = {}
+    for event_id, name in rows:
+        out.setdefault(event_id, []).append(name)
+    return out
+
+
 @router.get("", response_model=EventList)
 async def list_events(
     session: AsyncSession = Depends(get_session),
@@ -71,7 +109,10 @@ async def list_events(
         select(Event).where(*filters).order_by(order_col.desc()).limit(limit).offset(offset)
     )
     events = list(rows.scalars())
-    counts = await _counts(session, [e.id for e in events])
+    ids = [e.id for e in events]
+    counts = await _counts(session, ids)
+    stypes = await _source_types(session, ids)
+    etopics = await _matched_topics(session, ids)
 
     items = []
     for e in events:
@@ -79,6 +120,8 @@ async def list_events(
         summary = EventSummary.model_validate(e)
         summary.item_count = item_count
         summary.source_count = source_count
+        summary.source_types = stypes.get(e.id, [])
+        summary.topics = etopics.get(e.id, [])
         items.append(summary)
 
     return EventList(total=total, items=items)
