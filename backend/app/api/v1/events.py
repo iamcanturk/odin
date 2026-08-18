@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings
 from app.core.db import get_session
 from app.models import ContentCandidate, ContentItem, Event, EventTopic, Source, Topic
+from app.models.enums import EventStatus
 from app.pipeline.content import create_candidates
 from app.pipeline.publish import approve_candidate
 from app.providers.factory import get_llm_provider
@@ -91,11 +92,17 @@ async def list_events(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     status: str | None = Query(None),
+    min_trend: float = Query(0.0, ge=0.0, le=100.0),
     order_by: str = Query("trend_score", pattern="^(trend_score|opportunity_score|last_seen_at)$"),
 ) -> EventList:
     filters = []
     if status:
         filters.append(Event.status == status)
+    else:
+        # Dismissed (archived) events never resurface in the default list.
+        filters.append(Event.status != EventStatus.ARCHIVED)
+    if min_trend > 0:
+        filters.append(Event.trend_score >= min_trend)
 
     total = await session.scalar(select(func.count(Event.id)).where(*filters)) or 0
 
@@ -181,6 +188,19 @@ async def generate_event_content(
     lang = language or get_settings().content_language
     angles = [kind] if kind else None
     return await create_candidates(session, event, get_llm_provider(), language=lang, angles=angles)
+
+
+@router.post("/{event_id}/dismiss", status_code=200)
+async def dismiss_event(
+    event_id: uuid.UUID, session: AsyncSession = Depends(get_session)
+) -> dict[str, str]:
+    """Mark an event as not interesting — archives it so it drops off the console."""
+    event = await session.get(Event, event_id)
+    if event is None:
+        raise HTTPException(status_code=404, detail="Event not found")
+    event.status = EventStatus.ARCHIVED
+    await session.commit()
+    return {"id": str(event_id), "status": event.status.value}
 
 
 @router.get("/{event_id}/candidates", response_model=list[CandidateRead])

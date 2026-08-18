@@ -103,13 +103,18 @@ export function fetchEvents(params?: {
   limit?: number;
   status?: string;
   orderBy?: string;
+  minTrend?: number;
 }): Promise<EventList> {
   const qs = new URLSearchParams();
   qs.set("limit", String(params?.limit ?? 50));
   if (params?.status) qs.set("status", params.status);
   if (params?.orderBy) qs.set("order_by", params.orderBy);
+  if (params?.minTrend) qs.set("min_trend", String(params.minTrend));
   return getJSON<EventList>(`/events?${qs.toString()}`);
 }
+
+export const dismissEvent = (id: string) =>
+  send<{ id: string; status: string }>(`/events/${id}/dismiss`, "POST");
 
 export function fetchEvent(id: string): Promise<EventDetail> {
   return getJSON<EventDetail>(`/events/${id}`);

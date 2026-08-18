@@ -10,10 +10,11 @@ import argparse
 import asyncio
 from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import delete, func, select
 
 from app.core.db import async_session_factory
-from app.models import Event, Source
+from app.models import ContentCandidate, ContentItem, Event, Notification, Source
+from app.models.associations import EventSource, EventTopic
 from app.models.enums import EventStatus, Priority, SourceType
 from app.pipeline.ingest import run_ingestion
 from app.pipeline.opportunity import apply_opportunity
@@ -96,13 +97,41 @@ async def style() -> None:
         print(f"style profile rebuilt from {profile.post_count} posts: {profile.summary}")
 
 
+async def purge_events() -> None:
+    """One-time cleanup: wipe all events + ingested items so the console starts fresh.
+
+    Keeps sources, topics, imported posts, profile snapshots and the style profile.
+    """
+    async with async_session_factory() as session:
+        n_events = await session.scalar(select(func.count(Event.id))) or 0
+        n_items = await session.scalar(select(func.count(ContentItem.id))) or 0
+        # Order matters: candidates/associations FK-cascade on events, but content_items
+        # only SET NULL, so delete them explicitly. Notifications reference events by id.
+        await session.execute(delete(ContentCandidate))
+        await session.execute(delete(EventTopic))
+        await session.execute(delete(EventSource))
+        await session.execute(delete(ContentItem))
+        await session.execute(delete(Notification))
+        await session.execute(delete(Event))
+        await session.commit()
+        print(f"purged {n_events} events and {n_items} content items")
+
+
 async def _dispatch(command: str) -> None:
-    await {"seed": seed, "ingest": ingest, "rematch": rematch, "style": style}[command]()
+    await {
+        "seed": seed,
+        "ingest": ingest,
+        "rematch": rematch,
+        "style": style,
+        "purge-events": purge_events,
+    }[command]()
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="ODIN management commands")
-    parser.add_argument("command", choices=["seed", "ingest", "rematch", "style"])
+    parser.add_argument(
+        "command", choices=["seed", "ingest", "rematch", "style", "purge-events"]
+    )
     args = parser.parse_args()
     asyncio.run(_dispatch(args.command))
 
