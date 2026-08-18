@@ -80,6 +80,13 @@ const M: Record<string, { tr: string; en: string }> = {
     tr: "Henüz olay yok. Kaynakları ekleyip ingestion worker'ı çalıştır.",
     en: "No events yet. Seed sources and run the ingestion worker to populate the console.",
   },
+  "onboard.title": { tr: "Fırsatlar nereden geliyor?", en: "Where do opportunities come from?" },
+  "onboard.body": {
+    tr: "ODIN; RSS, Hacker News, GitHub, Reddit ve X'ten olayları toplar, kümeler ve puanlar. Sana özel fırsatlar için konularını ekle — böylece hangi olayların senin için önemli olduğunu bilir. Konu olmadan sadece genel trendleri görürsün.",
+    en: "ODIN gathers events from RSS, Hacker News, GitHub, Reddit and X, clusters and scores them. Add your topics so ODIN knows which events matter to you — without topics you only see general trends.",
+  },
+  "onboard.cta": { tr: "Konularını ekle →", en: "Add your topics →" },
+  "ev.forYou": { tr: "sana uygun", en: "for you" },
   "greet.morning": { tr: "Günaydın", en: "Good morning" },
   "greet.afternoon": { tr: "İyi günler", en: "Good afternoon" },
   "greet.evening": { tr: "İyi akşamlar", en: "Good evening" },
