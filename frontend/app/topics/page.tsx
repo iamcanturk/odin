@@ -9,6 +9,7 @@ import {
   updateTopic,
   type Topic,
 } from "@/lib/api";
+import { useI18n } from "@/lib/i18n";
 import { EmptyState, ErrorState, LoadingState, Panel } from "@/components/ui";
 
 function splitCsv(v: string): string[] {
@@ -16,6 +17,7 @@ function splitCsv(v: string): string[] {
 }
 
 export default function TopicsPage() {
+  const { t } = useI18n();
   const qc = useQueryClient();
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["topics"],
@@ -55,24 +57,21 @@ export default function TopicsPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold tracking-tight">Topics</h1>
-        <p className="text-sm text-muted mt-1">
-          Define what ODIN should watch for you. Keywords boost relevance; excluded terms suppress
-          matches.
-        </p>
+        <h1 className="text-xl font-semibold tracking-tight">{t("tp.title")}</h1>
+        <p className="text-sm text-muted mt-1">{t("tp.subtitle")}</p>
       </div>
 
       <Panel className="p-4">
         <div className="grid gap-3 sm:grid-cols-[1fr_1fr_1fr_auto] items-end">
-          <Field label="Name" value={name} onChange={setName} placeholder="AI" />
+          <Field label={t("tp.name")} value={name} onChange={setName} placeholder="AI" />
           <Field
-            label="Keywords (comma-sep)"
+            label={t("tp.keywords")}
             value={keywords}
             onChange={setKeywords}
             placeholder="llm, openai, agents"
           />
           <Field
-            label="Exclude"
+            label={t("tp.exclude")}
             value={exclude}
             onChange={setExclude}
             placeholder="crypto, nft"
@@ -82,7 +81,7 @@ export default function TopicsPage() {
             disabled={!name.trim() || create.isPending}
             className="h-9 rounded-md border border-accent/50 px-4 text-sm text-accent hover:bg-accent/10 disabled:opacity-40 transition-colors"
           >
-            {create.isPending ? "Adding…" : "Add topic"}
+            {create.isPending ? t("tp.adding") : t("tp.add")}
           </button>
         </div>
         {create.error && (
@@ -95,30 +94,33 @@ export default function TopicsPage() {
       ) : error ? (
         <ErrorState message={(error as Error).message} onRetry={() => refetch()} />
       ) : !data || data.length === 0 ? (
-        <EmptyState label="No topics yet. Add your first above." />
+        <EmptyState label={t("tp.empty")} />
       ) : (
         <div className="grid gap-2">
-          {data.map((t) => (
-            <Panel key={t.id} className="p-3 flex items-center gap-3">
+          {data.map((topic) => (
+            <Panel key={topic.id} className="p-3 flex items-center gap-3">
               <button
-                onClick={() => toggle.mutate(t)}
-                className={`size-2.5 rounded-full shrink-0 ${t.enabled ? "bg-good" : "bg-border"}`}
-                title={t.enabled ? "Enabled" : "Disabled"}
+                onClick={() => toggle.mutate(topic)}
+                className={`size-2.5 rounded-full shrink-0 ${topic.enabled ? "bg-good" : "bg-border"}`}
+                title={topic.enabled ? "on" : "off"}
               />
               <div className="flex-1 min-w-0">
-                <span className="font-medium text-sm">{t.name}</span>
+                <span className="font-medium text-sm">{topic.name}</span>
                 <div className="text-xs text-muted mt-0.5 truncate">
-                  {t.keywords.join(", ") || "—"}
-                  {t.exclude_keywords.length > 0 && (
-                    <span className="text-hot/70"> · not: {t.exclude_keywords.join(", ")}</span>
+                  {topic.keywords.join(", ") || "—"}
+                  {topic.exclude_keywords.length > 0 && (
+                    <span className="text-hot/70">
+                      {" "}
+                      · {t("tp.not")} {topic.exclude_keywords.join(", ")}
+                    </span>
                   )}
                 </div>
               </div>
               <button
-                onClick={() => remove.mutate(t.id)}
+                onClick={() => remove.mutate(topic.id)}
                 className="text-muted hover:text-hot text-xs px-2 transition-colors"
               >
-                remove
+                {t("tp.remove")}
               </button>
             </Panel>
           ))}

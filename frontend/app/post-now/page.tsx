@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { fetchEvents, recommendedAction } from "@/lib/api";
+import { useI18n } from "@/lib/i18n";
 import { EmptyState, ErrorState, LoadingState, Panel, ScoreMeter } from "@/components/ui";
 
 const TONE: Record<string, string> = {
@@ -12,7 +13,15 @@ const TONE: Record<string, string> = {
   muted: "text-muted border-border",
 };
 
+const ACTION_KEY: Record<string, string> = {
+  "POST NOW": "action.postNow",
+  "POST WITHIN 30 MIN": "action.within30",
+  CONSIDER: "action.consider",
+  WAIT: "action.wait",
+};
+
 export default function PostNowPage() {
+  const { t } = useI18n();
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["events", { orderBy: "opportunity_score" }],
     queryFn: () => fetchEvents({ limit: 25, orderBy: "opportunity_score" }),
@@ -21,19 +30,16 @@ export default function PostNowPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold tracking-tight">What should I post now?</h1>
-        <p className="text-sm text-muted mt-1">
-          Events ranked by opportunity — trend momentum weighted by your personal relevance,
-          timing and source confidence.
-        </p>
+        <h1 className="text-xl font-semibold tracking-tight">{t("pn.title")}</h1>
+        <p className="text-sm text-muted mt-1">{t("pn.subtitle")}</p>
       </div>
 
       {isLoading ? (
-        <LoadingState label="Weighing opportunities…" />
+        <LoadingState />
       ) : error ? (
         <ErrorState message={(error as Error).message} onRetry={() => refetch()} />
       ) : !data || data.items.length === 0 ? (
-        <EmptyState label="No opportunities yet. Add topics and run ingestion." />
+        <EmptyState label={t("pn.empty")} />
       ) : (
         <div className="grid gap-3">
           {data.items.map((event, i) => {
@@ -49,15 +55,15 @@ export default function PostNowPage() {
                       <span
                         className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-mono uppercase tracking-widest ${TONE[action.tone]}`}
                       >
-                        {action.label}
+                        {t(ACTION_KEY[action.label] ?? action.label)}
                       </span>
                       <h3 className="mt-1.5 text-[15px] font-medium truncate group-hover:text-accent transition-colors">
                         {event.title}
                       </h3>
                     </div>
                     <div className="flex gap-4 shrink-0">
-                      <ScoreMeter label="Opp." score={event.opportunity_score} />
-                      <ScoreMeter label="You" score={event.personal_relevance} />
+                      <ScoreMeter label={t("pn.opp")} score={event.opportunity_score} />
+                      <ScoreMeter label={t("pn.you")} score={event.personal_relevance} />
                     </div>
                   </div>
                 </Panel>

@@ -3,9 +3,11 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchPosts, markPosted, type Post } from "@/lib/api";
+import { useI18n } from "@/lib/i18n";
 import { EmptyState, ErrorState, LoadingState, Panel } from "@/components/ui";
 
 function DraftRow({ post }: { post: Post }) {
+  const { t } = useI18n();
   const qc = useQueryClient();
   const [xid, setXid] = useState("");
   const mark = useMutation({
@@ -31,7 +33,7 @@ function DraftRow({ post }: { post: Post }) {
           <input
             value={xid}
             onChange={(e) => setXid(e.target.value)}
-            placeholder="Paste the X post id after posting"
+            placeholder={t("df.pasteId")}
             className="h-8 flex-1 rounded-md border border-border bg-panel-2 px-3 text-xs outline-none focus:border-accent/60"
           />
           <button
@@ -39,17 +41,20 @@ function DraftRow({ post }: { post: Post }) {
             disabled={!xid.trim() || mark.isPending}
             className="h-8 rounded-md border border-good/50 px-3 text-xs text-good hover:bg-good/10 disabled:opacity-40 transition-colors"
           >
-            Mark posted
+            {t("df.markPosted")}
           </button>
         </div>
       ) : (
-        <p className="text-[11px] text-muted font-mono mt-2">posted · id {post.external_id}</p>
+        <p className="text-[11px] text-muted font-mono mt-2">
+          {t("df.posted")} {post.external_id}
+        </p>
       )}
     </Panel>
   );
 }
 
 export default function DraftsPage() {
+  const { t } = useI18n();
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["posts", "queue"],
     queryFn: () => fetchPosts(),
@@ -59,19 +64,16 @@ export default function DraftsPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold tracking-tight">Drafts &amp; queue</h1>
-        <p className="text-sm text-muted mt-1">
-          Approved content, with its prediction stored. Post it on X yourself, then paste the post
-          id so ODIN can compare prediction vs. reality.
-        </p>
+        <h1 className="text-xl font-semibold tracking-tight">{t("df.title")}</h1>
+        <p className="text-sm text-muted mt-1">{t("df.subtitle")}</p>
       </div>
 
       {isLoading ? (
-        <LoadingState label="Loading drafts…" />
+        <LoadingState />
       ) : error ? (
         <ErrorState message={(error as Error).message} onRetry={() => refetch()} />
       ) : drafts.length === 0 ? (
-        <EmptyState label="No drafts yet. Approve a candidate from an event to queue it here." />
+        <EmptyState label={t("df.empty")} />
       ) : (
         <div className="grid gap-3">
           {drafts.map((p) => (

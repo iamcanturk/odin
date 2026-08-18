@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { fetchEvent } from "@/lib/api";
+import { useI18n } from "@/lib/i18n";
 import { ContentPanel } from "./ContentPanel";
 import { ErrorState, LoadingState, Panel, ScoreMeter, StatusBadge } from "./ui";
 
@@ -24,6 +25,7 @@ function VelocityRow({ label, value }: { label: string; value: number }) {
 }
 
 export function EventDetailView({ id }: { id: string }) {
+  const { t } = useI18n();
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["event", id],
     queryFn: () => fetchEvent(id),
@@ -32,11 +34,11 @@ export function EventDetailView({ id }: { id: string }) {
   return (
     <div className="flex flex-col gap-6">
       <Link href="/" className="text-xs text-muted hover:text-accent font-mono w-fit">
-        ← back to console
+        {t("ev.back")}
       </Link>
 
       {isLoading ? (
-        <LoadingState label="Loading event…" />
+        <LoadingState />
       ) : error ? (
         <ErrorState message={(error as Error).message} onRetry={() => refetch()} />
       ) : !data ? null : (
@@ -54,16 +56,16 @@ export function EventDetailView({ id }: { id: string }) {
 
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <Panel className="p-4">
-              <ScoreMeter label="Trend" score={data.trend_score} />
+              <ScoreMeter label={t("ev.trend")} score={data.trend_score} />
             </Panel>
             <Panel className="p-4">
-              <ScoreMeter label="Opportunity" score={data.opportunity_score} />
+              <ScoreMeter label={t("ev.opportunity")} score={data.opportunity_score} />
             </Panel>
             <Panel className="p-4">
-              <ScoreMeter label="Personal" score={data.personal_relevance} />
+              <ScoreMeter label={t("ev.personal")} score={data.personal_relevance} />
             </Panel>
             <Panel className="p-4">
-              <ScoreMeter label="Confidence" score={data.confidence_score} />
+              <ScoreMeter label={t("ev.confidence")} score={data.confidence_score} />
             </Panel>
           </div>
 
@@ -72,11 +74,11 @@ export function EventDetailView({ id }: { id: string }) {
           <div className="grid gap-6 lg:grid-cols-3">
             <Panel className="p-5 lg:col-span-1">
               <h2 className="text-xs uppercase tracking-widest text-muted mb-3">
-                Signal breakdown
+                {t("ev.signalBreakdown")}
               </h2>
               <div className="flex flex-col gap-2">
                 {Object.keys(data.velocity).length === 0 ? (
-                  <p className="text-sm text-muted">No signal data.</p>
+                  <p className="text-sm text-muted">{t("ev.noSignal")}</p>
                 ) : (
                   Object.entries(data.velocity).map(([k, v]) => (
                     <VelocityRow key={k} label={k} value={Number(v)} />
@@ -84,7 +86,7 @@ export function EventDetailView({ id }: { id: string }) {
                 )}
               </div>
               <h2 className="text-xs uppercase tracking-widest text-muted mt-5 mb-2">
-                Sources ({data.sources.length})
+                {t("ev.sourcesN")} ({data.sources.length})
               </h2>
               <div className="flex flex-wrap gap-2">
                 {data.sources.map((s) => (
@@ -100,7 +102,7 @@ export function EventDetailView({ id }: { id: string }) {
 
             <Panel className="p-5 lg:col-span-2">
               <h2 className="text-xs uppercase tracking-widest text-muted mb-3">
-                What people are sharing ({data.items.length})
+                {t("ev.sharing")} ({data.items.length})
               </h2>
               <ul className="flex flex-col divide-y divide-border/70">
                 {data.items.map((item) => (
