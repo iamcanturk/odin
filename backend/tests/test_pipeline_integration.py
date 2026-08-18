@@ -6,12 +6,14 @@ from datetime import UTC, datetime
 
 from sqlalchemy import func, select
 
-from app.models import ContentItem, Event, Post, Source, Topic
-from app.models.enums import SourceType
+from app.models import ContentCandidate, ContentItem, Event, Post, Source, Topic
+from app.models.enums import EventStatus, SourceType
 from app.pipeline.clustering import ClusterItem, cluster_items
 from app.pipeline.content import create_candidates
+from app.pipeline.evaluation import evaluate
 from app.pipeline.ingest import run_ingestion
 from app.pipeline.posts import import_user_post
+from app.pipeline.publish import approve_candidate, mark_posted
 from app.pipeline.style import build_style_profile
 from app.pipeline.tester import analyze
 from app.pipeline.text import keywords
@@ -184,3 +186,50 @@ async def test_m2_x_import_to_style_to_tester(db_sessionmaker) -> None:
         assert result.personal_fit != 50.0
         assert 0.0 <= result.viral_potential <= 100.0
         assert result.disclaimer
+
+
+async def test_m3_approve_post_metric_evaluate(db_sessionmaker) -> None:
+    """Approve a candidate -> mark posted -> import metrics -> evaluate."""
+    async with db_sessionmaker() as session:
+        event = Event(
+            title="OpenAI ships GPT-X",
+            status=EventStatus.TRENDING,
+            first_seen_at=datetime(2026, 8, 18, tzinfo=UTC),
+            last_seen_at=datetime(2026, 8, 18, tzinfo=UTC),
+            trend_score=85,
+            opportunity_score=82,
+            personal_relevance=70,
+        )
+        session.add(event)
+        await session.flush()
+        cand = ContentCandidate(
+            event_id=event.id,
+            text="Hot take: the bottleneck was never intelligence, it is infra.",
+            angle="contrarian",
+            viral_score=78,
+            rank=1,
+        )
+        session.add(cand)
+        await session.flush()
+
+        # Approve -> draft post + immutable prediction.
+        post, prediction = await approve_candidate(session, cand)
+        await session.commit()
+        assert post.status == "approved"
+        assert prediction.predicted_likes is not None
+
+        # Publish (manual) -> link the X id, then metrics arrive via the inbound channel.
+        await mark_posted(session, post.id, "1810000000000009999")
+        await session.commit()
+        await import_user_post(
+            session,
+            XIngestItem(id="1810000000000009999", text=post.text, is_self=True,
+                        metrics=XMetrics(likes=140, replies=12)),
+        )
+        await session.commit()
+
+        # Evaluate prediction vs actual.
+        summary = await evaluate(session)
+        assert summary.evaluated == 1
+        assert summary.mae > 0  # predicted != actual
+        assert summary.items[0].actual_likes == 140
