@@ -147,6 +147,7 @@ function scan() {
   scheduleSend();
   scanProfile();
   ensureStyleButton();
+  paintVelocityBadges();
 }
 
 // ---- GraphQL feed (primary source) ----
@@ -181,7 +182,92 @@ window.addEventListener("message", (event) => {
   capMap(graphqlTweets, GRAPHQL_CACHE_CAP);
   capMap(buffer, BUFFER_CAP);
   scheduleSend();
+  queueObserved(data.tweets);
+  paintVelocityBadges();
 });
+
+// ---- X Pulse ----
+// Everyone else's tweets go to the observation corpus (what's spiking on X), never to the
+// event pipeline. Batched and debounced so scrolling doesn't cause a request per tweet.
+
+const OBSERVE_DEBOUNCE_MS = 4000;
+const observeQueue = new Map();
+let observeTimer = null;
+
+function queueObserved(tweets) {
+  for (const t of tweets) {
+    if (t?.id && t.created_at) observeQueue.set(t.id, t);
+  }
+  if (observeTimer || observeQueue.size === 0) return;
+  observeTimer = setTimeout(flushObserved, OBSERVE_DEBOUNCE_MS);
+}
+
+async function flushObserved() {
+  observeTimer = null;
+  if (!extAlive() || observeQueue.size === 0) return;
+  const items = Array.from(observeQueue.values());
+  observeQueue.clear();
+  try {
+    await chrome.runtime.sendMessage({ type: "odin/observed", items });
+  } catch {
+    /* service worker asleep or context gone */
+  }
+}
+
+// ---- Inline velocity badge ----
+// views/hour, computed client-side so it appears with zero latency.
+
+const TIER_STYLE = {
+  hot: { label: "🔥", color: "#ff6b5e" },
+  warm: { label: "🚀", color: "#f2c14e" },
+  cold: { label: "🌱", color: "#8790a2" },
+};
+
+/** Views per HOUR — "/sa" (saat) so it can't be misread as per-second. */
+function formatRate(n) {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M/sa`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}B/sa`;
+  return `${Math.round(n)}/sa`;
+}
+
+function velocityOf(tweet) {
+  if (!tweet?.created_at || tweet.metrics?.impressions == null) return null;
+  const ageHours = Math.max((Date.now() - new Date(tweet.created_at).getTime()) / 3600000, 0.1);
+  const vph = tweet.metrics.impressions / ageHours;
+  const tier = vph >= 10000 ? "hot" : vph >= 1000 ? "warm" : "cold";
+  return { vph, tier, ageHours };
+}
+
+function paintVelocityBadges() {
+  let articles = document.querySelectorAll('article[data-testid="tweet"]');
+  if (articles.length === 0) articles = document.querySelectorAll('article[role="article"]');
+  for (const article of articles) {
+    const link = article.querySelector('a[href*="/status/"]');
+    const id = link?.getAttribute("href")?.match(/\/status\/(\d+)/)?.[1];
+    if (!id) continue;
+    const tweet = graphqlTweets.get(id);
+    const v = tweet && velocityOf(tweet);
+    if (!v) continue;
+
+    let badge = article.querySelector(".odin-velocity");
+    if (!badge) {
+      badge = document.createElement("span");
+      badge.className = "odin-velocity";
+      badge.style.cssText = [
+        "display:inline-flex", "align-items:center", "gap:4px", "margin-left:8px",
+        "padding:1px 6px", "border-radius:999px", "border:1px solid",
+        "font:600 11px system-ui,sans-serif", "vertical-align:middle",
+      ].join(";");
+      const nameRow = article.querySelector('[data-testid="User-Name"]');
+      (nameRow || article).appendChild(badge);
+    }
+    const style = TIER_STYLE[v.tier];
+    badge.textContent = `${style.label} ${formatRate(v.vph)}`;
+    badge.style.color = style.color;
+    badge.style.borderColor = style.color + "66";
+    badge.title = `${Math.round(v.vph).toLocaleString()} görüntülenme/saat · ${v.ageHours.toFixed(1)} saatlik`;
+  }
+}
 
 // ---- Profile stats capture (PROJECT.md §12: follower/following over time) ----
 

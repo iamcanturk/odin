@@ -26,6 +26,25 @@ const M: Record<string, { tr: string; en: string }> = {
   "nav.sources": { tr: "Kaynaklar", en: "Sources" },
   "nav.system": { tr: "Sistem", en: "System" },
   "nav.compose": { tr: "Tweet üret", en: "Compose" },
+  "nav.pulse": { tr: "X Nabız", en: "X Pulse" },
+
+  // X Pulse
+  "pl.title": { tr: "X Nabız", en: "X Pulse" },
+  "pl.subtitle": {
+    tr: "X'te şu an ne hızlanıyor — gezinirken görülen tweetlerden, görüntülenme/saat'e göre.",
+    en: "What's accelerating on X right now — from tweets seen while browsing, by views/hour.",
+  },
+  "pl.observed": { tr: "İzlenen tweet", en: "Observed" },
+  "pl.tier.all": { tr: "Hepsi", en: "All" },
+  "pl.tier.warm": { tr: "🚀 Isınan", en: "🚀 Warm" },
+  "pl.tier.hot": { tr: "🔥 Sıcak", en: "🔥 Hot" },
+  "pl.perHour": { tr: "görüntülenme/saat", en: "views/hour" },
+  "pl.age": { tr: "{n} saatlik", en: "{n}h old" },
+  "pl.empty": {
+    tr: "Henüz veri yok. Uzantı açıkken X'te gezin — gördüğün tweetler buraya düşer.",
+    en: "Nothing yet. Browse X with the extension on and the tweets you see land here.",
+  },
+  "pl.reply": { tr: "Yanıt üret", en: "Draft reply" },
 
   // composer
   "co.title": { tr: "Tweet üret", en: "Compose a post" },
