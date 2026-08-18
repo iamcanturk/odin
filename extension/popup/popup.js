@@ -23,6 +23,16 @@ toggleBtn.addEventListener("click", async () => {
   await render();
 });
 
+const badgesEl = document.getElementById("badges");
+if (badgesEl) {
+  chrome.storage.local.get({ odinBadges: true }, (cfg) => {
+    badgesEl.checked = cfg.odinBadges !== false;
+  });
+  badgesEl.addEventListener("change", () => {
+    chrome.storage.local.set({ odinBadges: badgesEl.checked });
+  });
+}
+
 const syncBtn = document.getElementById("sync-now");
 const syncResult = document.getElementById("sync-result");
 
