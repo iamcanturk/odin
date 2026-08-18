@@ -7,12 +7,14 @@ are never mutated — this only reads. Aggregate metrics: MAE, RMSE, precision@K
 from __future__ import annotations
 
 import math
+import statistics
 from dataclasses import dataclass, field
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Post, PostMetric, PostPrediction
+from app.pipeline.predict import DEFAULT_IMPRESSIONS_PER_LIKE, clamp_calibration
 
 
 @dataclass
@@ -32,6 +34,10 @@ class EvalSummary:
     mae: float = 0.0
     rmse: float = 0.0
     precision_at_3: float | None = None
+    # Learned correction: >1 means we systematically UNDER-predicted (§33).
+    calibration: float = 1.0
+    bias: str = "none"  # under | over | none
+    impressions_per_like: float | None = None
     items: list[EvalItem] = field(default_factory=list)
 
 
@@ -103,10 +109,51 @@ async def evaluate(session: AsyncSession) -> EvalSummary:
         )
 
     pairs = [(float(i.predicted_likes), float(i.actual_likes)) for i in items]
+    cal = calibration_factor(pairs)
     return EvalSummary(
         evaluated=len(items),
         mae=mae(pairs),
         rmse=rmse(pairs),
         precision_at_3=precision_at_k(items, 3),
+        calibration=cal,
+        bias="under" if cal > 1.15 else "over" if cal < 0.85 else "none",
+        impressions_per_like=await learned_impressions_per_like(session),
         items=items,
+    )
+
+
+def calibration_factor(pairs: list[tuple[float, float]]) -> float:
+    """Median actual/predicted ratio — how wrong we've been, as a correction factor.
+
+    Median (not mean) so one viral outlier doesn't distort every future prediction.
+    """
+    ratios = [a / p for p, a in pairs if p > 0]
+    if not ratios:
+        return 1.0
+    return round(clamp_calibration(statistics.median(ratios)), 3)
+
+
+async def learned_impressions_per_like(session: AsyncSession) -> float | None:
+    """Re-learn the impressions:likes ratio from actuals instead of assuming ~45."""
+    rows = list(
+        (
+            await session.execute(
+                select(PostMetric.impressions, PostMetric.likes).where(
+                    PostMetric.impressions.is_not(None),
+                    PostMetric.likes.is_not(None),
+                    PostMetric.likes > 0,
+                )
+            )
+        ).all()
+    )
+    if len(rows) < 3:
+        return None
+    return round(statistics.median(imp / likes for imp, likes in rows), 2)
+
+
+async def current_calibration(session: AsyncSession) -> tuple[float, float]:
+    """(calibration factor, impressions-per-like) to feed into the next prediction."""
+    summary = await evaluate(session)
+    return summary.calibration, (
+        summary.impressions_per_like or DEFAULT_IMPRESSIONS_PER_LIKE
     )

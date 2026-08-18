@@ -321,6 +321,15 @@ const M: Record<string, { tr: string; en: string }> = {
   },
   "ln.evaluated": { tr: "Değerlendirilen", en: "Evaluated" },
   "ln.perPost": { tr: "Gönderi başına", en: "Per post" },
+  "ln.calibration": { tr: "Kalibrasyon", en: "Calibration" },
+  "ln.calibrationHint": {
+    tr: "Geçmiş tahmin hataların bir sonraki tahmine otomatik uygulanır — model kendini düzeltir.",
+    en: "Past prediction error is folded into the next prediction — the model self-corrects.",
+  },
+  "ln.bias.under": { tr: "Düşük tahmin ediyorduk, yukarı düzeltildi", en: "We under-predicted; corrected up" },
+  "ln.bias.over": { tr: "Yüksek tahmin ediyorduk, aşağı düzeltildi", en: "We over-predicted; corrected down" },
+  "ln.bias.none": { tr: "Tahminler isabetli", en: "Predictions are on target" },
+  "ln.impPerLike": { tr: "beğeni başına ~{n} görüntülenme", en: "~{n} views per like" },
   "ln.pred": { tr: "tahmin", en: "pred" },
   "ln.act": { tr: "gerçek", en: "act" },
 

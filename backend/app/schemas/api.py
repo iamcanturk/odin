@@ -272,6 +272,9 @@ class EvaluationSummary(BaseModel):
     mae: float
     rmse: float
     precision_at_3: float | None = None
+    calibration: float = 1.0
+    bias: str = "none"
+    impressions_per_like: float | None = None
     items: list[EvaluationItem]
 
 

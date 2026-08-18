@@ -13,8 +13,14 @@ from dataclasses import dataclass, field
 
 from app.pipeline.xsim import simulate
 
-MODEL_VERSION = "predict-v1"
+MODEL_VERSION = "predict-v2"
 DEFAULT_BASELINE_LIKES = 8  # cold-start anchor when the user has no post history
+
+# Calibration is clamped so a couple of freak posts can't wreck future predictions.
+CALIBRATION_MIN = 0.25
+CALIBRATION_MAX = 4.0
+# Impressions per like, re-learned from actuals when we have them.
+DEFAULT_IMPRESSIONS_PER_LIKE = 45.0
 
 
 @dataclass
@@ -37,6 +43,10 @@ def baseline_likes(recent_likes: list[int]) -> float:
     return float(statistics.median(vals)) if vals else float(DEFAULT_BASELINE_LIKES)
 
 
+def clamp_calibration(factor: float) -> float:
+    return max(CALIBRATION_MIN, min(CALIBRATION_MAX, factor))
+
+
 def predict(
     text: str,
     *,
@@ -45,14 +55,19 @@ def predict(
     recent_likes: list[int],
     trend_fit: float = 0.0,
     personal_fit: float = 0.0,
+    calibration: float = 1.0,
+    impressions_per_like: float = DEFAULT_IMPRESSIONS_PER_LIKE,
 ) -> Prediction:
+    """Predict engagement. `calibration` folds in how wrong past predictions were."""
     xr = simulate(text, trend_fit=trend_fit, personal_fit=personal_fit)
     base = baseline_likes(recent_likes)
+    cal = clamp_calibration(calibration)
 
     # Viral score 50 ≈ on par with the user's median; higher scales up, lower scales down.
+    # The calibration factor corrects systematic over/under-prediction (learned, §33).
     multiplier = max(0.2, viral_score / 50.0)
-    likes = round(base * multiplier)
-    impressions = round(likes * 45)  # rough public engagement-rate assumption (~2%)
+    likes = round(base * multiplier * cal)
+    impressions = round(likes * impressions_per_like)
     replies = round(likes * xr.probabilities["reply"] / max(xr.probabilities["like"], 1e-6) * 0.5)
     reposts = round(likes * xr.probabilities["repost"] / max(xr.probabilities["like"], 1e-6) * 0.5)
 
@@ -69,6 +84,8 @@ def predict(
         features={
             "baseline_likes": base,
             "multiplier": round(multiplier, 3),
+            "calibration": round(cal, 3),
+            "impressions_per_like": round(impressions_per_like, 2),
             **{f"p_{k}": v for k, v in xr.probabilities.items()},
         },
     )

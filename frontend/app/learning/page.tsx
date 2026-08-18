@@ -44,6 +44,26 @@ export default function LearningPage() {
           </div>
 
           <Panel className="p-5">
+            <h2 className="text-xs uppercase tracking-widest text-muted">{t("ln.calibration")}</h2>
+            <div className="flex flex-wrap items-baseline gap-4 mt-2">
+              <span
+                className={`text-2xl font-semibold tabular-nums ${
+                  data.bias === "none" ? "text-good" : "text-warn"
+                }`}
+              >
+                {data.calibration.toFixed(2)}x
+              </span>
+              <span className="text-sm text-muted">{t(`ln.bias.${data.bias}`)}</span>
+              {data.impressions_per_like != null && (
+                <span className="text-[11px] text-faint font-mono ml-auto">
+                  {t("ln.impPerLike", { n: data.impressions_per_like.toFixed(1) })}
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] text-faint mt-2">{t("ln.calibrationHint")}</p>
+          </Panel>
+
+          <Panel className="p-5">
             <h2 className="text-xs uppercase tracking-widest text-muted mb-3">{t("ln.perPost")}</h2>
             <div className="grid gap-2">
               {data.items.map((it) => (

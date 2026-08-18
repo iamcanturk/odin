@@ -291,6 +291,9 @@ export interface EvaluationSummary {
   mae: number;
   rmse: number;
   precision_at_3: number | null;
+  calibration: number;
+  bias: "under" | "over" | "none";
+  impressions_per_like: number | null;
   items: EvaluationItem[];
 }
 
