@@ -5,6 +5,32 @@ const SEND_DEBOUNCE_MS = 2500;
 const buffer = new Map(); // id -> item
 let sendTimer = null;
 
+// When the extension is reloaded/updated, this script keeps running on the page but its
+// chrome.* bridge is dead ("Extension context invalidated"). Detect that and stand down
+// instead of throwing on every mutation.
+let contextAlive = true;
+
+function extAlive() {
+  if (!contextAlive) return false;
+  try {
+    if (!chrome.runtime?.id) contextAlive = false;
+  } catch {
+    contextAlive = false;
+  }
+  if (!contextAlive) shutdown();
+  return contextAlive;
+}
+
+function shutdown() {
+  try {
+    observer?.disconnect();
+  } catch {
+    /* observer may not exist yet */
+  }
+  document.getElementById(BTN_ID)?.remove();
+  console.debug("[ODIN] extension context gone — content script standing down (reload the page)");
+}
+
 function text(el) {
   return el ? el.innerText.trim() : null;
 }
@@ -67,6 +93,7 @@ function extractTweet(article) {
 }
 
 function scan() {
+  if (!extAlive()) return;
   // Prefer the stable testid; fall back to role if X changes markup.
   let articles = document.querySelectorAll('article[data-testid="tweet"]');
   if (articles.length === 0) articles = document.querySelectorAll('article[role="article"]');
@@ -125,7 +152,7 @@ function tweetCount() {
 
 async function scanProfile() {
   const handle = currentHandle();
-  if (!handle) return;
+  if (!handle || !extAlive()) return;
   const { odinEnabled = true, odinHandle = "" } = await chrome.storage.local.get([
     "odinEnabled",
     "odinHandle",
@@ -164,6 +191,7 @@ function normHandle(h) {
 
 async function flush() {
   sendTimer = null;
+  if (!extAlive()) return;
   const { odinEnabled = true, odinHandle = "" } = await chrome.storage.local.get([
     "odinEnabled",
     "odinHandle",
@@ -218,7 +246,8 @@ function collectAuthorTweets(handle, into) {
 
 async function sampleStyle({ onProgress } = {}) {
   const handle = currentHandle();
-  if (!handle) return { error: "Open a profile page (x.com/<handle>)" };
+  if (!handle) return { error: "Profil sayfası değil" };
+  if (!extAlive()) return { error: "Uzantı yeniden yüklendi — sayfayı yenile" };
 
   // Auto-scroll so we see a real sample, not just the 3 tweets above the fold.
   const found = new Map();
@@ -246,14 +275,125 @@ async function sampleStyle({ onProgress } = {}) {
 }
 
 // ---- In-page button ----
-// A floating "learn this style" button that appears on any profile page.
+// Injected into X's own profile action bar (next to Message / Follow) by CLONING one of
+// their buttons, so it inherits their exact classes and looks native even when X changes
+// its CSS. Falls back to a floating button if the action bar can't be found.
 
 const BTN_ID = "odin-style-btn";
+const TOAST_ID = "odin-toast";
+const SVG_NS = "http://www.w3.org/2000/svg";
+// Sparkles — reads as "learn / infer style".
+const ICON_PATH =
+  "M11 2l1.5 4.2L17 8l-4.5 1.8L11 14 9.5 9.8 5 8l4.5-1.8L11 2z" +
+  "M18.5 12l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8.8-2.2z" +
+  "M6 15.5l.6 1.7 1.9.8-1.9.8L6 20.5l-.6-1.7-1.9-.8 1.9-.8.6-1.7z";
 
-function toast(el, msg, color) {
+const COLORS = { idle: "", busy: "#f2c14e", ok: "#3dd4a0", err: "#ff6b5e" };
+
+function showToast(msg, color) {
+  let el = document.getElementById(TOAST_ID);
+  if (!el) {
+    el = document.createElement("div");
+    el.id = TOAST_ID;
+    el.style.cssText = [
+      "position:fixed", "right:20px", "bottom:20px", "z-index:2147483647",
+      "padding:10px 14px", "border-radius:10px", "border:1px solid",
+      "background:#0d1017", "font:500 13px system-ui,sans-serif",
+      "box-shadow:0 6px 24px rgba(0,0,0,.45)", "pointer-events:none",
+      "transition:opacity .2s", "max-width:320px",
+    ].join(";");
+    document.body.appendChild(el);
+  }
   el.textContent = msg;
-  el.style.borderColor = color;
   el.style.color = color;
+  el.style.borderColor = color;
+  el.style.opacity = "1";
+  clearTimeout(el._t);
+  el._t = setTimeout(() => (el.style.opacity = "0"), 4000);
+}
+
+function paintButton(btn, color) {
+  // Recolor the icon only; everything else stays X's own styling.
+  for (const el of btn.querySelectorAll("svg, div")) {
+    if (color) el.style.color = color;
+    else el.style.removeProperty("color");
+  }
+}
+
+/** The profile action bar + a button to clone for styling. */
+function findActionBar() {
+  for (const sel of ['[data-testid="sendDMFromProfile"]', '[data-testid="userActions"]']) {
+    const el = document.querySelector(sel);
+    if (el?.parentElement) return { bar: el.parentElement, template: el, anchor: el };
+  }
+  return null;
+}
+
+function buildNativeButton(template, handle) {
+  const btn = template.cloneNode(true);
+  btn.id = BTN_ID;
+  btn.dataset.handle = handle;
+  // Strip the cloned button's identity so X's own handlers/tests never match it.
+  for (const attr of ["data-testid", "aria-haspopup", "aria-expanded", "aria-describedby"]) {
+    btn.removeAttribute(attr);
+  }
+  const label = `ODIN: @${handle} tarzını öğren`;
+  btn.setAttribute("aria-label", label);
+  btn.setAttribute("title", label);
+
+  // Replace the icon. Build the SVG with DOM APIs — X sets a strict CSP/Trusted Types
+  // policy, so assigning innerHTML here would be blocked.
+  const svg = btn.querySelector("svg");
+  if (svg) {
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    const g = document.createElementNS(SVG_NS, "g");
+    const path = document.createElementNS(SVG_NS, "path");
+    path.setAttribute("d", ICON_PATH);
+    g.appendChild(path);
+    svg.appendChild(g);
+  }
+  // Drop any text label if we cloned a button that had one.
+  for (const span of btn.querySelectorAll("span")) {
+    if (span.textContent.trim()) span.textContent = "";
+  }
+  return btn;
+}
+
+function buildFloatingButton(handle) {
+  const btn = document.createElement("button");
+  btn.id = BTN_ID;
+  btn.dataset.handle = handle;
+  btn.textContent = `ODIN: @${handle} tarzını öğren`;
+  btn.style.cssText = [
+    "position:fixed", "right:20px", "bottom:20px", "z-index:2147483646",
+    "padding:10px 14px", "border-radius:10px", "border:1px solid #5aa2ff",
+    "background:#0d1017", "color:#5aa2ff", "font:500 13px system-ui,sans-serif",
+    "cursor:pointer", "box-shadow:0 6px 24px rgba(0,0,0,.45)",
+  ].join(";");
+  return btn;
+}
+
+async function onStyleClick(btn) {
+  if (btn.dataset.busy === "1") return;
+  btn.dataset.busy = "1";
+  paintButton(btn, COLORS.busy);
+  showToast("Tweetler taranıyor…", COLORS.busy);
+  try {
+    const res = await sampleStyle({
+      onProgress: (n) => showToast(`Taranıyor… ${n} tweet`, COLORS.busy),
+    });
+    if (!res || res.error) throw new Error(res?.error || "Bilinmeyen hata");
+    paintButton(btn, COLORS.ok);
+    showToast(`✓ @${btn.dataset.handle}: ${res.stored} yeni örnek alındı`, COLORS.ok);
+  } catch (err) {
+    paintButton(btn, COLORS.err);
+    showToast(`✕ ${err.message || err}`, COLORS.err);
+  } finally {
+    setTimeout(() => {
+      paintButton(btn, COLORS.idle);
+      btn.dataset.busy = "0";
+    }, 3000);
+  }
 }
 
 function ensureStyleButton() {
@@ -264,58 +404,42 @@ function ensureStyleButton() {
     existing?.remove();
     return;
   }
-  if (existing) {
-    if (existing.dataset.handle !== handle) {
-      existing.dataset.handle = handle;
-      toast(existing, `ODIN: @${handle} tarzını öğren`, "#5aa2ff");
-    }
-    return;
-  }
+  // Still mounted and pointing at the right profile? Nothing to do.
+  if (existing?.isConnected && existing.dataset.handle === handle) return;
+  existing?.remove();
 
-  const btn = document.createElement("button");
-  btn.id = BTN_ID;
-  btn.dataset.handle = handle;
-  btn.textContent = `ODIN: @${handle} tarzını öğren`;
-  btn.style.cssText = [
-    "position:fixed", "right:20px", "bottom:20px", "z-index:99999",
-    "padding:10px 14px", "border-radius:10px", "border:1px solid #5aa2ff",
-    "background:#0d1017", "color:#5aa2ff", "font:500 13px system-ui,sans-serif",
-    "cursor:pointer", "box-shadow:0 6px 24px rgba(0,0,0,.45)",
-  ].join(";");
-
-  btn.addEventListener("click", async () => {
-    if (btn.disabled) return;
-    btn.disabled = true;
-    const original = `ODIN: @${btn.dataset.handle} tarzını öğren`;
-    toast(btn, "Tweetler taranıyor…", "#f2c14e");
-    try {
-      const res = await sampleStyle({
-        onProgress: (n) => toast(btn, `Taranıyor… ${n} tweet`, "#f2c14e"),
-      });
-      if (res?.error) throw new Error(res.error);
-      toast(btn, `✓ ${res.stored} yeni örnek alındı`, "#3dd4a0");
-    } catch (err) {
-      toast(btn, `✕ ${err.message || err}`, "#ff6b5e");
-    } finally {
-      setTimeout(() => {
-        toast(btn, original, "#5aa2ff");
-        btn.disabled = false;
-      }, 3500);
-    }
+  const spot = findActionBar();
+  const btn = spot ? buildNativeButton(spot.template, handle) : buildFloatingButton(handle);
+  btn.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onStyleClick(btn);
   });
 
-  document.body.appendChild(btn);
+  if (spot) spot.anchor.insertAdjacentElement("afterend", btn);
+  else document.body.appendChild(btn);
+}
+
+// The popup can close mid-request, which closes the message channel; guard every reply.
+function safeRespond(sendResponse, payload) {
+  try {
+    sendResponse(payload);
+  } catch {
+    /* channel already closed (popup dismissed) — the work still completed */
+  }
 }
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === "odin/rescan") {
     lastProfileKey = null; // force a fresh profile snapshot even if the DOM is unchanged
     scan();
-    sendResponse({ ok: true, buffered: buffer.size });
-    return true;
+    safeRespond(sendResponse, { ok: true, buffered: buffer.size });
+    return false; // responded synchronously
   }
   if (message?.type === "odin/sample-style") {
-    sampleStyle().then(sendResponse);
+    sampleStyle()
+      .then((r) => safeRespond(sendResponse, r))
+      .catch((e) => safeRespond(sendResponse, { error: String(e?.message || e) }));
     return true; // async response
   }
   return false;
