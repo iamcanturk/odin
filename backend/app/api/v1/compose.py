@@ -8,10 +8,12 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.db import get_session
+from app.models import StyleReference
 from app.pipeline.content import ANGLES, compose_freeform
 from app.providers.factory import get_llm_provider
 
@@ -26,6 +28,7 @@ class ComposeRequest(BaseModel):
     kind: str = Field(
         default="", pattern="^(breaking|contrarian|technical|educational|question|)$"
     )
+    style_handle: str = Field(default="", max_length=120)
 
 
 class ComposeDraft(BaseModel):
@@ -35,6 +38,22 @@ class ComposeDraft(BaseModel):
     novelty_score: float
     risk_score: float
     rank: int
+
+
+class StyleRef(BaseModel):
+    handle: str
+    samples: int
+
+
+@router.get("/styles", response_model=list[StyleRef])
+async def list_styles(session: AsyncSession = Depends(get_session)) -> list[StyleRef]:
+    """Accounts the extension has sampled, available as style references."""
+    rows = await session.execute(
+        select(StyleReference.handle, func.count())
+        .group_by(StyleReference.handle)
+        .order_by(func.count().desc())
+    )
+    return [StyleRef(handle=h, samples=n) for h, n in rows]
 
 
 @router.post("", response_model=list[ComposeDraft])
@@ -51,6 +70,7 @@ async def compose(
         length=payload.length,
         audience=payload.audience,
         angles=angles,
+        style_handle=payload.style_handle,
         n=min(3, len(ANGLES)),
     )
     return [

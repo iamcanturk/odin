@@ -95,6 +95,30 @@ async function handleProfile(profile) {
   }
 }
 
+async function handleStyle(handle, items) {
+  const cfg = await getConfig();
+  if (!cfg.odinToken || !cfg.odinEndpoint) return { error: "Not configured — set URL + token" };
+  try {
+    const res = await fetch(`${cfg.odinEndpoint}/ingest/x/style`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Ingest-Token": cfg.odinToken },
+      body: JSON.stringify({ handle, items }),
+    });
+    if (!res.ok) {
+      const msg = res.status === 401 ? "Bad token (401)" : `HTTP ${res.status}`;
+      await setStatus(msg);
+      return { error: msg };
+    }
+    const body = await res.json();
+    await flashBadge(String(body.stored ?? 0), "#f2c14e");
+    console.debug("[ODIN] style sample:", body);
+    return body;
+  } catch (err) {
+    await setStatus(String(err));
+    return { error: String(err) };
+  }
+}
+
 // ---- Background refresh ----
 // MV3 service workers are ephemeral, so a periodic alarm wakes us up. We can't scrape X
 // without a tab, but any OPEN x.com tab (even a background one) can be asked to re-scan,
@@ -128,6 +152,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === "odin/collect") {
     (async () => {
       const result = await handleCollect(message.items || []);
+      sendResponse(result);
+    })();
+    return true; // async response
+  }
+  if (message?.type === "odin/style") {
+    (async () => {
+      const result = await handleStyle(message.handle, message.items || []);
       sendResponse(result);
     })();
     return true; // async response

@@ -10,6 +10,7 @@ from app.models.post import Post, PostMetric, PostPrediction
 from app.models.profile_snapshot import ProfileSnapshot
 from app.models.source import Source
 from app.models.style_profile import StyleProfile
+from app.models.style_reference import StyleReference
 from app.models.topic import Topic
 
 __all__ = [
@@ -27,5 +28,6 @@ __all__ = [
     "ProfileSnapshot",
     "Source",
     "StyleProfile",
+    "StyleReference",
     "Topic",
 ]

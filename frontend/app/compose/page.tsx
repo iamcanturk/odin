@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import {
   compose,
+  fetchStyleRefs,
   type ComposeAudience,
   type ComposeDraft,
   type ComposeLength,
@@ -71,9 +73,13 @@ export default function ComposePage() {
   const [audience, setAudience] = useState<ComposeAudience>("technical");
   const [length, setLength] = useState<ComposeLength>("short");
   const [kind, setKind] = useState<TweetKind>("");
+  const [styleHandle, setStyleHandle] = useState("");
+
+  const { data: styles } = useQuery({ queryKey: ["compose", "styles"], queryFn: fetchStyleRefs });
 
   const gen = useMutation({
-    mutationFn: () => compose({ topic, language: lang, length, audience, kind }),
+    mutationFn: () =>
+      compose({ topic, language: lang, length, audience, kind, style_handle: styleHandle }),
   });
 
   const selectCls =
@@ -155,6 +161,26 @@ export default function ComposePage() {
               ))}
             </select>
           </label>
+
+          {!!styles?.length && (
+            <label className="flex flex-col gap-1">
+              <span className="text-[10px] uppercase tracking-widest text-muted">
+                {t("co.style")}
+              </span>
+              <select
+                value={styleHandle}
+                onChange={(e) => setStyleHandle(e.target.value)}
+                className={selectCls}
+              >
+                <option value="">{t("co.style.mine")}</option>
+                {styles.map((s) => (
+                  <option key={s.handle} value={s.handle}>
+                    @{s.handle} ({s.samples})
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
 
           <button
             onClick={() => gen.mutate()}
