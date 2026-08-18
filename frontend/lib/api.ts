@@ -348,10 +348,11 @@ export interface StyleProfile {
 
 export async function fetchProfile(): Promise<StyleProfile | null> {
   const res = await fetch(`${API_BASE}/profile`, {
-    headers: { Accept: "application/json" },
+    headers: { Accept: "application/json", ...authHeaders() },
     cache: "no-store",
   });
-  if (res.status === 404) return null;
+  if (res.status === 404) return null; // no profile yet — not an error
+  if (res.status === 401) handleUnauthorized("/profile");
   if (!res.ok) throw new Error(`API ${res.status}: ${res.statusText}`);
   return res.json() as Promise<StyleProfile>;
 }
