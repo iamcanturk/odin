@@ -1,10 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { fetchEvents } from "@/lib/api";
+import { fetchEvents, fetchTopics } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { EventCard } from "@/components/EventCard";
-import { EmptyState, ErrorState, LoadingState } from "@/components/ui";
+import { EmptyState, ErrorState, LoadingState, Panel } from "@/components/ui";
 
 function greetingKey(): string {
   const h = new Date().getHours();
@@ -19,8 +20,10 @@ export default function DashboardPage() {
     queryKey: ["events", { orderBy: "opportunity_score" }],
     queryFn: () => fetchEvents({ limit: 50, orderBy: "opportunity_score" }),
   });
+  const { data: topics } = useQuery({ queryKey: ["topics"], queryFn: fetchTopics });
 
   const highOpp = (data?.items ?? []).filter((e) => e.opportunity_score >= 50).length;
+  const noTopics = topics !== undefined && topics.length === 0;
 
   return (
     <div className="flex flex-col gap-6">
@@ -29,6 +32,19 @@ export default function DashboardPage() {
           {t(greetingKey())}. {t("dash.foundN", { n: data.total })}
           {highOpp > 0 ? `, ${t("dash.relevantM", { m: highOpp })}` : `, ${t("dash.allQuiet")}`}.
         </p>
+      )}
+
+      {noTopics && (
+        <Panel className="p-5 border-accent/30">
+          <h2 className="text-sm font-semibold text-accent">{t("onboard.title")}</h2>
+          <p className="text-sm text-muted mt-2 max-w-3xl">{t("onboard.body")}</p>
+          <Link
+            href="/topics"
+            className="inline-block mt-3 rounded-md border border-accent/50 px-3 py-1.5 text-sm text-accent hover:bg-accent/10 transition-colors"
+          >
+            {t("onboard.cta")}
+          </Link>
+        </Panel>
       )}
       <div className="flex items-end justify-between gap-4">
         <div>

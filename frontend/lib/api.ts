@@ -55,6 +55,8 @@ export interface EventSummary {
   last_seen_at: string;
   source_count: number;
   item_count: number;
+  source_types: string[];
+  topics: string[];
 }
 
 export interface EventList {
