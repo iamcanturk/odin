@@ -12,10 +12,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.db import get_session
-from app.models import ContentItem, Source
+from app.models import ContentItem, ProfileSnapshot, Source
 from app.models.enums import Priority, SourceType
 from app.pipeline.posts import import_user_post
-from app.schemas.x import XIngestBatch, XIngestItem, XIngestResult
+from app.schemas.x import XIngestBatch, XIngestItem, XIngestResult, XProfileIngest
 from app.sources.base import compute_content_hash
 
 router = APIRouter(prefix="/ingest", tags=["ingest"])
@@ -110,3 +110,41 @@ async def ingest_x(
         duplicates=len(batch.items) - len(created),
         events_created=0,
     )
+
+
+@router.post("/x/profile", status_code=201)
+async def ingest_x_profile(
+    payload: XProfileIngest,
+    session: AsyncSession = Depends(get_session),
+    x_ingest_token: str | None = Header(default=None, alias="X-Ingest-Token"),
+) -> dict[str, str | bool]:
+    """Record a profile stats snapshot (followers/following/tweets). Deduped when unchanged."""
+    _verify_token(x_ingest_token)
+    handle = payload.handle.lstrip("@").lower()
+
+    latest = (
+        await session.execute(
+            select(ProfileSnapshot)
+            .where(ProfileSnapshot.handle == handle)
+            .order_by(ProfileSnapshot.captured_at.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    if (
+        latest is not None
+        and latest.followers == payload.followers
+        and latest.following == payload.following
+        and latest.tweets == payload.tweets
+    ):
+        return {"handle": handle, "stored": False}
+
+    session.add(
+        ProfileSnapshot(
+            handle=handle,
+            followers=payload.followers,
+            following=payload.following,
+            tweets=payload.tweets,
+        )
+    )
+    await session.commit()
+    return {"handle": handle, "stored": True}

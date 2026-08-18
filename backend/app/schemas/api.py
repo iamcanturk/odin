@@ -256,6 +256,22 @@ class EvaluationSummary(BaseModel):
 # ---- Notifications ----
 
 
+class ProfilePoint(BaseModel):
+    captured_at: datetime
+    followers: int | None = None
+    following: int | None = None
+    tweets: int | None = None
+
+
+class ProfileGrowth(BaseModel):
+    handle: str | None = None
+    snapshots: int = 0
+    latest: ProfilePoint | None = None
+    delta_followers: int | None = None  # since the first snapshot
+    delta_following: int | None = None
+    series: list[ProfilePoint] = Field(default_factory=list)
+
+
 class PerformanceCategory(BaseModel):
     category: str
     score: float

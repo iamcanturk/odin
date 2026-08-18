@@ -36,3 +36,10 @@ class XIngestResult(BaseModel):
     created: int
     duplicates: int
     events_created: int
+
+
+class XProfileIngest(BaseModel):
+    handle: str = Field(min_length=1, max_length=120)
+    followers: int | None = None
+    following: int | None = None
+    tweets: int | None = None

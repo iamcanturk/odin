@@ -6,6 +6,7 @@ from app.models.content_item import ContentItem
 from app.models.event import Event
 from app.models.notification import Notification
 from app.models.post import Post, PostMetric, PostPrediction
+from app.models.profile_snapshot import ProfileSnapshot
 from app.models.source import Source
 from app.models.style_profile import StyleProfile
 from app.models.topic import Topic
@@ -20,6 +21,7 @@ __all__ = [
     "Post",
     "PostMetric",
     "PostPrediction",
+    "ProfileSnapshot",
     "Source",
     "StyleProfile",
     "Topic",
