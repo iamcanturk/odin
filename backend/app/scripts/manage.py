@@ -29,6 +29,19 @@ DEFAULT_SOURCES = [
      "priority": Priority.MEDIUM, "confidence": 0.9},
     {"name": "The Verge", "type": SourceType.RSS, "url": "https://www.theverge.com/rss/index.xml",
      "category": "technology", "priority": Priority.MEDIUM, "confidence": 0.85},
+    # Security / CVE / breaches / outages
+    {"name": "BleepingComputer", "type": SourceType.RSS,
+     "url": "https://www.bleepingcomputer.com/feed/", "category": "security",
+     "priority": Priority.HIGH, "confidence": 0.9},
+    {"name": "The Hacker News", "type": SourceType.RSS,
+     "url": "https://feeds.feedburner.com/TheHackersNews", "category": "security",
+     "priority": Priority.HIGH, "confidence": 0.85},
+    {"name": "Krebs on Security", "type": SourceType.RSS,
+     "url": "https://krebsonsecurity.com/feed/", "category": "security",
+     "priority": Priority.HIGH, "confidence": 0.95},
+    {"name": "SecurityWeek", "type": SourceType.RSS,
+     "url": "https://www.securityweek.com/feed/", "category": "security",
+     "priority": Priority.MEDIUM, "confidence": 0.88},
 ]
 
 
