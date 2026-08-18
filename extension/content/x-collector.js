@@ -59,11 +59,18 @@ function extractTweet(article) {
 }
 
 function scan() {
-  const articles = document.querySelectorAll('article[data-testid="tweet"]');
+  // Prefer the stable testid; fall back to role if X changes markup.
+  let articles = document.querySelectorAll('article[data-testid="tweet"]');
+  if (articles.length === 0) articles = document.querySelectorAll('article[role="article"]');
+  let added = 0;
   for (const article of articles) {
     const item = extractTweet(article);
-    if (item && !buffer.has(item.id)) buffer.set(item.id, item);
+    if (item && !buffer.has(item.id)) {
+      buffer.set(item.id, item);
+      added += 1;
+    }
   }
+  if (added > 0) console.debug(`[ODIN] captured ${added} post(s), buffer=${buffer.size}`);
   scheduleSend();
 }
 
@@ -95,7 +102,8 @@ async function flush() {
   }));
   buffer.clear();
   try {
-    await chrome.runtime.sendMessage({ type: "odin/collect", items });
+    const res = await chrome.runtime.sendMessage({ type: "odin/collect", items });
+    console.debug(`[ODIN] handed off ${items.length} post(s) →`, res);
   } catch (err) {
     console.warn("[ODIN] failed to hand off batch:", err);
   }
