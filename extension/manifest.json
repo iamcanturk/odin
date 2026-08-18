@@ -3,7 +3,11 @@
   "name": "ODIN X Collector",
   "version": "0.1.0",
   "description": "Collects X posts you view and sends them to your ODIN instance for analysis.",
-  "permissions": ["storage", "alarms", "tabs"],
+  "permissions": [
+    "storage",
+    "alarms",
+    "tabs"
+  ],
   "host_permissions": [
     "https://x.com/*",
     "https://twitter.com/*",
@@ -20,8 +24,24 @@
   "options_page": "options/options.html",
   "content_scripts": [
     {
-      "matches": ["https://x.com/*", "https://twitter.com/*"],
-      "js": ["content/x-collector.js"],
+      "matches": [
+        "https://x.com/*",
+        "https://twitter.com/*"
+      ],
+      "js": [
+        "content/x-net-hook.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://x.com/*",
+        "https://twitter.com/*"
+      ],
+      "js": [
+        "content/x-collector.js"
+      ],
       "run_at": "document_idle"
     }
   ]
