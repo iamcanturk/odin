@@ -1,0 +1,23 @@
+[Unit]
+Description=ODIN FastAPI (uvicorn/gunicorn)
+After=network.target docker.service
+Wants=docker.service
+
+[Service]
+Type=simple
+User=odin
+Group=odin
+WorkingDirectory=/home/odin/app/backend
+# .env is at the repo root (one level up); Settings reads ../.env
+EnvironmentFile=/home/odin/app/.env
+# Bind to localhost only; CloudPanel/nginx reverse-proxies to it.
+ExecStart=/home/odin/.local/bin/uv run gunicorn app.main:app \
+  --workers 2 \
+  --worker-class uvicorn.workers.UvicornWorker \
+  --bind 127.0.0.1:8000 \
+  --timeout 120
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,17 @@
+[Unit]
+Description=ODIN ARQ ingestion worker
+After=network.target docker.service odin-api.service
+Wants=docker.service
+
+[Service]
+Type=simple
+User=odin
+Group=odin
+WorkingDirectory=/home/odin/app/backend
+EnvironmentFile=/home/odin/app/.env
+ExecStart=/home/odin/.local/bin/uv run arq app.workers.tasks.WorkerSettings
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

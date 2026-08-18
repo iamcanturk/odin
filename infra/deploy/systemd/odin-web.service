@@ -1,0 +1,18 @@
+[Unit]
+Description=ODIN Next.js (next start)
+After=network.target
+
+[Service]
+Type=simple
+User=odin
+Group=odin
+WorkingDirectory=/home/odin/app/frontend
+Environment=NODE_ENV=production
+Environment=PORT=3000
+# Note: NEXT_PUBLIC_API_BASE_URL is inlined at BUILD time (see deploy.sh), not here.
+ExecStart=/usr/bin/pnpm start
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
