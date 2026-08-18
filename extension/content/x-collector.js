@@ -72,14 +72,27 @@ function scheduleSend() {
   sendTimer = setTimeout(flush, SEND_DEBOUNCE_MS);
 }
 
+function normHandle(h) {
+  return (h || "").replace(/^@/, "").toLowerCase();
+}
+
 async function flush() {
   sendTimer = null;
-  const { odinEnabled = true } = await chrome.storage.local.get("odinEnabled");
+  const { odinEnabled = true, odinHandle = "" } = await chrome.storage.local.get([
+    "odinEnabled",
+    "odinHandle",
+  ]);
   if (!odinEnabled || buffer.size === 0) {
     buffer.clear();
     return;
   }
-  const items = Array.from(buffer.values());
+  // Mark the user's own posts (matched by handle) so the backend imports them for
+  // style + personal-performance analysis.
+  const me = normHandle(odinHandle);
+  const items = Array.from(buffer.values()).map((it) => ({
+    ...it,
+    is_self: !!me && normHandle(it.author_handle) === me,
+  }));
   buffer.clear();
   try {
     await chrome.runtime.sendMessage({ type: "odin/collect", items });
