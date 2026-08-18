@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
-import { fetchEvents, fetchTopics } from "@/lib/api";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { dismissEvent, fetchEvents, fetchTopics, type EventList } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { EventCard } from "@/components/EventCard";
 import {
@@ -13,6 +13,10 @@ import {
   Panel,
   StatTile,
 } from "@/components/ui";
+
+// Ignore near-dead events on the console — they add noise without opportunity.
+const MIN_TREND = 15;
+const WATCHING_CAP = 24;
 
 function greetingKey(): string {
   const h = new Date().getHours();
@@ -35,17 +39,44 @@ function SectionHeader({ title, hint, count }: { title: string; hint: string; co
 
 export default function DashboardPage() {
   const { t } = useI18n();
+  const qc = useQueryClient();
+  const queryKey = ["events", { orderBy: "opportunity_score", minTrend: MIN_TREND }];
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ["events", { orderBy: "opportunity_score" }],
-    queryFn: () => fetchEvents({ limit: 50, orderBy: "opportunity_score" }),
+    queryKey,
+    queryFn: () =>
+      fetchEvents({ limit: 60, orderBy: "opportunity_score", minTrend: MIN_TREND }),
   });
   const { data: topics } = useQuery({ queryKey: ["topics"], queryFn: fetchTopics });
 
+  const dismiss = useMutation({
+    mutationFn: dismissEvent,
+    onMutate: (id: string) => {
+      const prev = qc.getQueryData<EventList>(queryKey);
+      if (prev) {
+        qc.setQueryData<EventList>(queryKey, {
+          ...prev,
+          total: Math.max(0, prev.total - 1),
+          items: prev.items.filter((e) => e.id !== id),
+        });
+      }
+      return { prev };
+    },
+    onError: (_e, _id, ctx) => {
+      if (ctx?.prev) qc.setQueryData(queryKey, ctx.prev);
+    },
+  });
+
   const events = data?.items ?? [];
-  const actNow = events.filter((e) => e.opportunity_score >= 50);
-  const watching = events.filter((e) => e.opportunity_score < 50);
+  const actNow = events
+    .filter((e) => e.opportunity_score >= 50)
+    .sort((a, b) => b.opportunity_score - a.opportunity_score);
+  // "Watching": lower opportunity, newest-added first, capped to keep the page tight.
+  const watching = events
+    .filter((e) => e.opportunity_score < 50)
+    .sort((a, b) => new Date(b.last_seen_at).getTime() - new Date(a.last_seen_at).getTime())
+    .slice(0, WATCHING_CAP);
   const forYou = events.filter((e) => e.topics.length > 0).length;
-  const topOpp = events.length ? Math.round(events[0].opportunity_score) : 0;
+  const topOpp = actNow.length ? Math.round(actNow[0].opportunity_score) : 0;
   const noTopics = topics !== undefined && topics.length === 0;
 
   return (
@@ -54,7 +85,7 @@ export default function DashboardPage() {
         title={t("dash.title")}
         subtitle={
           data
-            ? `${t(greetingKey())}. ${t("dash.foundN", { n: data.total })}${
+            ? `${t(greetingKey())}. ${t("dash.foundN", { n: events.length })}${
                 actNow.length > 0
                   ? `, ${t("dash.relevantM", { m: actNow.length })}.`
                   : `, ${t("dash.allQuiet")}.`
@@ -65,7 +96,7 @@ export default function DashboardPage() {
 
       {data && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <StatTile label={t("dash.statTracked")} value={data.total} />
+          <StatTile label={t("dash.statTracked")} value={events.length} />
           <StatTile
             label={t("dash.statActNow")}
             value={actNow.length}
@@ -110,7 +141,12 @@ export default function DashboardPage() {
               />
               <div className="grid gap-3">
                 {actNow.map((event, i) => (
-                  <EventCard key={event.id} event={event} rank={i + 1} />
+                  <EventCard
+                    key={event.id}
+                    event={event}
+                    rank={i + 1}
+                    onDismiss={(id) => dismiss.mutate(id)}
+                  />
                 ))}
               </div>
             </section>
@@ -125,7 +161,12 @@ export default function DashboardPage() {
               />
               <div className="grid gap-3">
                 {watching.map((event, i) => (
-                  <EventCard key={event.id} event={event} rank={actNow.length + i + 1} />
+                  <EventCard
+                    key={event.id}
+                    event={event}
+                    rank={actNow.length + i + 1}
+                    onDismiss={(id) => dismiss.mutate(id)}
+                  />
                 ))}
               </div>
             </section>

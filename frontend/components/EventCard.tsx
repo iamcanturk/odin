@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { EventSummary } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { Panel, ScoreMeter, StatusBadge } from "./ui";
+import { IconClose } from "./icons";
 
 const SOURCE_LABEL: Record<string, string> = {
   rss: "RSS",
@@ -21,22 +22,43 @@ function relativeTime(iso: string): string {
   return `${Math.round(hours / 24)}d`;
 }
 
-export function EventCard({ event, rank }: { event: EventSummary; rank: number }) {
+export function EventCard({
+  event,
+  rank,
+  onDismiss,
+}: {
+  event: EventSummary;
+  rank: number;
+  onDismiss?: (id: string) => void;
+}) {
   const { t } = useI18n();
   const forYou = event.topics.length > 0;
   return (
     <Link href={`/events/${event.id}`} className="block group">
       <Panel
-        className={`p-4 transition-colors group-hover:border-accent/50 ${forYou ? "border-l-2 border-l-good" : ""}`}
+        className={`relative p-4 transition-colors group-hover:border-accent/50 ${forYou ? "border-l-2 border-l-good" : ""}`}
       >
-        <div className="flex items-start gap-4">
-          <div className="font-mono text-xs text-muted w-6 pt-1 tabular-nums">
+        {onDismiss && (
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onDismiss(event.id);
+            }}
+            className="absolute top-2.5 right-2.5 z-10 rounded-md p-1 text-faint hover:text-hot hover:bg-panel-2/80 transition-colors"
+            title={t("ev.dismiss")}
+            aria-label={t("ev.dismiss")}
+          >
+            <IconClose width={14} height={14} />
+          </button>
+        )}
+        <div className="flex items-start gap-3 pr-6">
+          <div className="font-mono text-xs text-faint w-6 pt-1 tabular-nums shrink-0">
             {String(rank).padStart(2, "0")}
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <StatusBadge status={event.status} />
-              {/* where it comes from */}
               {event.source_types.map((s) => (
                 <span
                   key={s}
@@ -45,7 +67,6 @@ export function EventCard({ event, rank }: { event: EventSummary; rank: number }
                   {SOURCE_LABEL[s] ?? s}
                 </span>
               ))}
-              {/* why it's for you */}
               {event.topics.map((tp) => (
                 <span
                   key={tp}
@@ -54,7 +75,7 @@ export function EventCard({ event, rank }: { event: EventSummary; rank: number }
                   {tp}
                 </span>
               ))}
-              <span className="text-[11px] text-muted">
+              <span className="text-[11px] text-faint">
                 {event.source_count} · {event.item_count} · {relativeTime(event.last_seen_at)}
               </span>
             </div>
@@ -64,10 +85,10 @@ export function EventCard({ event, rank }: { event: EventSummary; rank: number }
             {event.summary && (
               <p className="text-sm text-muted mt-1 line-clamp-2">{event.summary}</p>
             )}
-          </div>
-          <div className="flex gap-4 shrink-0">
-            <ScoreMeter label={t("ev.trend")} score={event.trend_score} />
-            <ScoreMeter label={t("pn.opp")} score={event.opportunity_score} />
+            <div className="flex flex-wrap gap-x-6 gap-y-2 mt-3">
+              <ScoreMeter label={t("ev.trend")} score={event.trend_score} />
+              <ScoreMeter label={t("pn.opp")} score={event.opportunity_score} />
+            </div>
           </div>
         </div>
       </Panel>

@@ -157,6 +157,7 @@ const M: Record<string, { tr: string; en: string }> = {
   "ev.items": { tr: "içerik", en: "items" },
   "ev.back": { tr: "← konsola dön", en: "← back to console" },
   "ev.trend": { tr: "Trend", en: "Trend" },
+  "ev.dismiss": { tr: "İlgilenmiyorum", en: "Not interested" },
   "ev.opportunity": { tr: "Fırsat", en: "Opportunity" },
   "ev.personal": { tr: "Kişisel", en: "Personal" },
   "ev.confidence": { tr: "Güven", en: "Confidence" },
