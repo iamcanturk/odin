@@ -4,7 +4,16 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from app.api.v1 import events, ingest, posts, profile, sources, tester, topics
+from app.api.v1 import (
+    evaluation,
+    events,
+    ingest,
+    posts,
+    profile,
+    sources,
+    tester,
+    topics,
+)
 
 api_router = APIRouter()
 api_router.include_router(events.router)
@@ -14,3 +23,4 @@ api_router.include_router(ingest.router)
 api_router.include_router(profile.router)
 api_router.include_router(tester.router)
 api_router.include_router(posts.router)
+api_router.include_router(evaluation.router)
