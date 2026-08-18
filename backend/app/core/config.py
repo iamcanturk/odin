@@ -29,10 +29,11 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
 
     # LLM provider (DeepSeek via OpenAI-compatible API)
-    llm_provider: str = "deepseek"
+    # OpenAI-compatible LLM (OpenRouter by default; swap base_url/model for DeepSeek/OpenAI).
+    llm_provider: str = "openrouter"
     llm_api_key: str = ""
-    llm_base_url: str = "https://api.deepseek.com"
-    llm_model: str = "deepseek-chat"
+    llm_base_url: str = "https://openrouter.ai/api/v1"
+    llm_model: str = "deepseek/deepseek-chat"
     # Only events at/above this trend score get LLM enrichment (cost control).
     enrich_trend_threshold: float = 50.0
     # Shared token the browser extension must send to POST /api/v1/ingest/x. Empty = disabled.
