@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.core.db import get_session
 from app.models import ContentCandidate, ContentItem, Event, Source
 from app.pipeline.content import create_candidates
@@ -126,12 +127,15 @@ async def get_event(
 
 @router.post("/{event_id}/generate", response_model=list[CandidateRead], status_code=201)
 async def generate_event_content(
-    event_id: uuid.UUID, session: AsyncSession = Depends(get_session)
+    event_id: uuid.UUID,
+    session: AsyncSession = Depends(get_session),
+    language: str = Query("", pattern="^(en|tr|)$"),
 ) -> list[ContentCandidate]:
     event = await session.get(Event, event_id)
     if event is None:
         raise HTTPException(status_code=404, detail="Event not found")
-    return await create_candidates(session, event, get_llm_provider())
+    lang = language or get_settings().content_language
+    return await create_candidates(session, event, get_llm_provider(), language=lang)
 
 
 @router.get("/{event_id}/candidates", response_model=list[CandidateRead])

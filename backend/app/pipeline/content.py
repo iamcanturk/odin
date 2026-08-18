@@ -30,6 +30,13 @@ _SYSTEM = (
     "Return ONLY the post text (no quotes, no hashtags spam, <= 280 characters)."
 )
 
+_LANG_NAME = {"en": "English", "tr": "Turkish"}
+
+
+def _system_for(language: str) -> str:
+    name = _LANG_NAME.get(language, "English")
+    return f"{_SYSTEM} Write the post in {name}."
+
 
 @dataclass
 class CandidateDraft:
@@ -64,13 +71,19 @@ def _prompt(event: Event, item_texts: list[str], instruction: str) -> str:
 
 
 async def generate_candidates(
-    event: Event, item_texts: list[str], llm: LLMProvider, *, platform: str = "x"
+    event: Event,
+    item_texts: list[str],
+    llm: LLMProvider,
+    *,
+    platform: str = "x",
+    language: str = "en",
 ) -> list[CandidateDraft]:
+    system = _system_for(language)
     drafts: list[CandidateDraft] = []
     for angle, (instruction, novelty, risk) in ANGLES.items():
         text = await llm.generate(
             _prompt(event, item_texts, instruction),
-            system=_SYSTEM,
+            system=system,
             temperature=0.8,
             max_tokens=160,
         )
@@ -97,7 +110,12 @@ async def generate_candidates(
 
 
 async def create_candidates(
-    session: AsyncSession, event: Event, llm: LLMProvider, *, platform: str = "x"
+    session: AsyncSession,
+    event: Event,
+    llm: LLMProvider,
+    *,
+    platform: str = "x",
+    language: str = "en",
 ) -> list[ContentCandidate]:
     """Regenerate + persist ranked candidates for an event."""
     rows = await session.execute(
@@ -107,7 +125,7 @@ async def create_candidates(
     )
     texts = [" ".join(p for p in (t, x) if p) for t, x in rows]
 
-    drafts = await generate_candidates(event, texts, llm, platform=platform)
+    drafts = await generate_candidates(event, texts, llm, platform=platform, language=language)
 
     await session.execute(
         delete(ContentCandidate).where(ContentCandidate.event_id == event.id)

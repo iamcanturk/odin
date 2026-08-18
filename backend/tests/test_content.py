@@ -40,6 +40,28 @@ async def test_generates_all_distinct_angles_ranked() -> None:
     assert scores == sorted(scores, reverse=True)
 
 
+class _CapturingLLM(LLMProvider):
+    """Records the system prompt so we can assert the language instruction."""
+
+    def __init__(self) -> None:
+        self.systems: list[str] = []
+
+    async def generate(self, prompt, *, system=None, temperature=0.7, max_tokens=512) -> str:
+        self.systems.append(system or "")
+        return "post"
+
+
+@pytest.mark.asyncio
+async def test_language_flows_into_prompt() -> None:
+    llm = _CapturingLLM()
+    await generate_candidates(_event(), [], llm, language="tr")
+    assert all("Turkish" in s for s in llm.systems)
+
+    llm_en = _CapturingLLM()
+    await generate_candidates(_event(), [], llm_en, language="en")
+    assert all("English" in s for s in llm_en.systems)
+
+
 @pytest.mark.asyncio
 async def test_contrarian_scores_high_novelty() -> None:
     drafts = await generate_candidates(_event(), [], _EchoLLM())

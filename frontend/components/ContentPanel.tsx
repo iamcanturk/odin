@@ -64,7 +64,7 @@ function CandidateCard({ c, eventId }: { c: Candidate; eventId: string }) {
 }
 
 export function ContentPanel({ eventId }: { eventId: string }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const qc = useQueryClient();
   const { data } = useQuery({
     queryKey: ["candidates", eventId],
@@ -72,7 +72,7 @@ export function ContentPanel({ eventId }: { eventId: string }) {
   });
 
   const generate = useMutation({
-    mutationFn: () => generateCandidates(eventId),
+    mutationFn: () => generateCandidates(eventId, locale),
     onSuccess: (candidates) => qc.setQueryData(["candidates", eventId], candidates),
   });
 

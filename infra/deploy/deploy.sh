@@ -4,6 +4,8 @@
 set -euo pipefail
 
 APP_DIR="${APP_DIR:-/home/odin/app}"
+# uv/uvx install to ~/.local/bin; ensure it's on PATH even in a non-login shell.
+export PATH="$HOME/.local/bin:$PATH"
 # Same-origin API — the reverse proxy routes /api to the backend.
 export NEXT_PUBLIC_API_BASE_URL="${NEXT_PUBLIC_API_BASE_URL:-/api/v1}"
 
