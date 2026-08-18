@@ -23,6 +23,33 @@ const M: Record<string, { tr: string; en: string }> = {
   "nav.profile": { tr: "Profil", en: "Profile" },
   "nav.drafts": { tr: "Taslaklar", en: "Drafts" },
   "nav.learning": { tr: "Öğrenme", en: "Learning" },
+  "nav.sources": { tr: "Kaynaklar", en: "Sources" },
+
+  // sources
+  "src.title": { tr: "Kaynaklar", en: "Sources" },
+  "src.subtitle": {
+    tr: "ODIN'in izlediği içerik kaynakları. RSS ekle, aç/kapat, sağlığı gör.",
+    en: "The content sources ODIN watches. Add RSS, enable/disable, see health.",
+  },
+  "src.add": { tr: "Kaynak ekle", en: "Add source" },
+  "src.adding": { tr: "Ekleniyor…", en: "Adding…" },
+  "src.name": { tr: "Ad", en: "Name" },
+  "src.url": { tr: "RSS URL", en: "RSS URL" },
+  "src.healthy": { tr: "sağlıklı", en: "healthy" },
+  "src.failing": { tr: "hata", en: "failing" },
+  "src.never": { tr: "hiç çekilmedi", en: "never polled" },
+  "src.remove": { tr: "kaldır", en: "remove" },
+  "src.empty": { tr: "Henüz kaynak yok. İlk RSS'i yukarıdan ekle.", en: "No sources yet. Add your first RSS above." },
+
+  // performance (profile)
+  "pf.performance": { tr: "Senin için ne işe yarıyor", en: "What works for you" },
+  "pf.byType": { tr: "İçerik tipine göre", en: "By content type" },
+  "pf.byTopic": { tr: "Konuya göre", en: "By topic" },
+  "pf.noPerf": {
+    tr: "Henüz performans verisi yok. Gönderilerini içe aktar.",
+    en: "No performance data yet. Import your posts.",
+  },
+  "pf.postsN": { tr: "gönderi", en: "posts" },
   "header.signOut": { tr: "Çıkış", en: "Sign out" },
   "header.notifications": { tr: "Bildirimler", en: "Notifications" },
 

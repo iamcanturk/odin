@@ -270,6 +270,49 @@ export const fetchUnreadCount = () => getJSON<number>("/notifications/unread-cou
 export const markNotificationRead = (id: string) =>
   send<Notification>(`/notifications/${id}/read`, "POST");
 
+// ---- Sources ----
+
+export interface Source {
+  id: string;
+  name: string;
+  type: string;
+  url: string | null;
+  category: string | null;
+  priority: string;
+  enabled: boolean;
+  poll_interval_seconds: number;
+  confidence: number;
+  last_polled_at: string | null;
+  last_success_at: string | null;
+  failure_count: number;
+}
+
+export const fetchSources = () => getJSON<Source[]>("/sources");
+export const createSource = (body: {
+  name: string;
+  type: string;
+  url?: string | null;
+  category?: string | null;
+}) => send<Source>("/sources", "POST", body);
+export const updateSource = (id: string, body: { enabled?: boolean }) =>
+  send<Source>(`/sources/${id}`, "PATCH", body);
+export const deleteSource = (id: string) => send<void>(`/sources/${id}`, "DELETE");
+
+// ---- Performance ----
+
+export interface PerformanceCategory {
+  category: string;
+  score: number;
+  posts: number;
+  avg_engagement: number;
+}
+export interface PerformanceSummary {
+  total_posts: number;
+  by_type: PerformanceCategory[];
+  by_topic: PerformanceCategory[];
+}
+export const fetchPerformance = () => getJSON<PerformanceSummary>("/performance");
+
 // ---- Tweet tester ----
 
 export interface TesterResponse {
