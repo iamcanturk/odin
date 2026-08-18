@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import Event, StyleProfile
 from app.models.enums import EventStatus
 from app.pipeline.clustering import cosine
-from app.pipeline.xsim import extract_features, simulate
+from app.pipeline.xsim import extract_features, negative_probability, simulate
 from app.providers.base import EmbeddingProvider
 
 SCORING_VERSION = "tester-v1"
@@ -73,22 +73,25 @@ async def analyze(session: AsyncSession, text: str, embedder: EmbeddingProvider)
     viral = combine_viral(xr.sim_score, personal_fit, trend_fit, novelty)
 
     f = extract_features(text)
+    neg = negative_probability(xr.probabilities)
     strengths: list[str] = []
     weaknesses: list[str] = []
     if xr.sim_score >= 50:
         strengths.append("Strong predicted ranking signals.")
+    if f.shareable >= 0.3:
+        strengths.append("Save/share-worthy — copy-link shares are the top-weighted signal.")
     if personal_fit >= 60:
         strengths.append("Matches your historical voice.")
     if trend_fit >= 60:
         strengths.append("Highly relevant to a currently trending event.")
     if f.has_question:
-        strengths.append("Invites replies, which the ranker weights heavily.")
+        strengths.append("Invites replies, which the ranker weights ~10x a like.")
     if novelty < 35:
         weaknesses.append("Low novelty — similar framing is already widespread.")
-    if xr.probabilities["negative"] >= 0.05:
-        weaknesses.append("Elevated negative-feedback risk.")
-    if f.has_link:
-        weaknesses.append("External link may reduce reach.")
+    if neg >= 0.02:
+        weaknesses.append("Elevated negative-feedback risk (mutes / 'not interested').")
+    if xr.sim_score < 30 and f.shareable < 0.3:
+        weaknesses.append("Few reach signals — nothing here invites a share, reply or save.")
     if not strengths:
         strengths.append("No standout strengths detected.")
     if not weaknesses:
@@ -102,7 +105,7 @@ async def analyze(session: AsyncSession, text: str, embedder: EmbeddingProvider)
         novelty=novelty,
         reply_potential=round(100.0 * xr.probabilities["reply"], 2),
         bookmark_potential=round(100.0 * xr.probabilities["bookmark"], 2),
-        negative_risk=round(100.0 * xr.probabilities["negative"], 2),
+        negative_risk=round(100.0 * neg, 2),
         probabilities=xr.probabilities,
         strengths=strengths,
         weaknesses=weaknesses,
