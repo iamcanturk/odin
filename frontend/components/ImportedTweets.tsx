@@ -25,8 +25,14 @@ function FirstHour({ history }: { history?: MetricPoint[] }) {
   const { t } = useI18n();
   // Defensive: an older API build omits this field entirely, and a bare .filter() on
   // undefined takes the whole page down.
+  // Merged/backfilled posts can carry samples captured before the recorded post time
+  // (negative offsets); those aren't part of the first-hour curve.
   const pts = (history ?? []).filter(
-    (h) => h.minutes_after_post != null && h.minutes_after_post <= 60 && h.impressions != null,
+    (h) =>
+      h.minutes_after_post != null &&
+      h.minutes_after_post >= 0 &&
+      h.minutes_after_post <= 60 &&
+      h.impressions != null,
   );
   if (pts.length < 2) return null;
   const max = Math.max(...pts.map((p) => p.impressions ?? 0)) || 1;
