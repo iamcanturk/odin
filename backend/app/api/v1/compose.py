@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings
 from app.core.db import get_session
 from app.models import ContentItem, StyleReference
-from app.pipeline.content import ANGLES, compose_freeform, refine_text
+from app.pipeline.content import ANGLES, compose_freeform, generate_replies, refine_text
 from app.providers.factory import get_llm_provider
 
 router = APIRouter(prefix="/compose", tags=["compose"])
@@ -84,6 +84,44 @@ async def refine(
         context=context,
     )
     return RefineResponse(text=text)
+
+
+class ReplyRequest(BaseModel):
+    """Draft replies to someone else's tweet."""
+
+    text: str = Field(min_length=1, max_length=10000)  # the post being replied to
+    author_handle: str = Field(default="", max_length=120)
+    thread_context: str = Field(default="", max_length=4000)
+    language: str = Field(default="", pattern="^(en|tr|)$")
+    kind: str = Field(default="", pattern="^(extend|counterexample|question|experience|)$")
+
+
+@router.post("/reply", response_model=list[ComposeDraft])
+async def reply(
+    payload: ReplyRequest, session: AsyncSession = Depends(get_session)
+) -> list[ComposeDraft]:
+    """Replying to an accelerating post borrows its distribution — xsim rates a reply 10x a like."""
+    lang = payload.language or get_settings().content_language
+    drafts = await generate_replies(
+        session,
+        payload.text,
+        get_llm_provider(),
+        parent_handle=payload.author_handle,
+        thread_context=payload.thread_context,
+        language=lang,
+        angles=[payload.kind] if payload.kind else None,
+    )
+    return [
+        ComposeDraft(
+            text=d.text,
+            angle=d.angle,
+            viral_score=d.viral_score,
+            novelty_score=d.novelty_score,
+            risk_score=d.risk_score,
+            rank=d.rank,
+        )
+        for d in drafts
+    ]
 
 
 class StyleRef(BaseModel):

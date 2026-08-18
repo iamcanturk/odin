@@ -534,6 +534,16 @@ export const refineText = (body: {
   event_id?: string;
 }) => send<{ text: string }>("/compose/refine", "POST", body);
 
+export type ReplyKind = "" | "extend" | "counterexample" | "question" | "experience";
+
+export const composeReply = (body: {
+  text: string;
+  author_handle?: string;
+  thread_context?: string;
+  language?: string;
+  kind?: ReplyKind;
+}) => send<ComposeDraft[]>("/compose/reply", "POST", body);
+
 export const compose = (body: {
   topic: string;
   language?: string;

@@ -45,6 +45,15 @@ const M: Record<string, { tr: string; en: string }> = {
     en: "Nothing yet. Browse X with the extension on and the tweets you see land here.",
   },
   "pl.reply": { tr: "Yanıt üret", en: "Draft reply" },
+  "pl.replying": { tr: "Yazılıyor…", en: "Drafting…" },
+  "pl.replyHint": {
+    tr: "Hızlanan bir gönderiye yanıt, onun erişimini ödünç alır — xsim yanıtı beğeninin 10 katı sayar.",
+    en: "Replying to an accelerating post borrows its reach — xsim rates a reply 10x a like.",
+  },
+  "rk.extend": { tr: "Katkı yap", en: "Add to it" },
+  "rk.counterexample": { tr: "Karşı örnek", en: "Counterexample" },
+  "rk.question": { tr: "Soru sor", en: "Ask" },
+  "rk.experience": { tr: "Deneyim paylaş", en: "Experience" },
 
   // composer
   "co.title": { tr: "Tweet üret", en: "Compose a post" },
