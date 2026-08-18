@@ -224,6 +224,12 @@ class PostRead(ORMModel):
     created_at: datetime
 
 
+class CandidateUpdate(BaseModel):
+    """Edit a generated candidate before approving it (PROJECT.md §24)."""
+
+    text: str = Field(min_length=1, max_length=10000)
+
+
 class ImportedTweet(BaseModel):
     """The user's own imported tweet + its latest engagement snapshot."""
 

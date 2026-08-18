@@ -16,6 +16,15 @@ The first target platform is X (Twitter), but the architecture MUST NOT be X-spe
 
 ODIN must be designed from day one as a multi-source, multi-platform intelligence system.
 
+> **SCOPE DECISION (2026-08-18): X is the only publishing platform.**
+> LinkedIn and Reddit as *output* targets are **cancelled** — no per-platform publishing
+> adapters or formatting branches. The `platform` field stays (defaulting to `"x"`) so the
+> architecture isn't painted into a corner, but no other output platform will be built.
+>
+> This applies to OUTPUT only. ODIN remains **multi-source on the input side**: RSS,
+> Hacker News, GitHub, Reddit, Google Trends, Turkish tech feeds, security/CVE feeds and
+> AI-lab feeds all stay — they are what generate X post ideas.
+
 ---
 
 # 2. Core Principles
@@ -83,10 +92,9 @@ The system should be structured around these major engines:
                      v
              PLATFORM ADAPTERS
                      |
-          +----------+----------+
-          |          |          |
-          v          v          v
-          X       LinkedIn    Reddit
+                     |
+                     v
+                     X          (LinkedIn / Reddit output: cancelled)
 4. Data Sources
 The initial implementation should support:
 Tier 1
@@ -596,10 +604,9 @@ class PlatformAdapter:
         ...
 Implement:
 XAdapter
-RedditAdapter
-LinkedInAdapter
-eventually.
-Each platform must have separate:
+~~RedditAdapter~~ (cancelled as an output target)
+~~LinkedInAdapter~~ (cancelled as an output target)
+Only XAdapter is in scope. Were another platform ever added, it would need separate:
 content formatting
 scoring
 character limits
@@ -1035,7 +1042,7 @@ Metrics collection
 Prediction vs actual
 Self-improving model
 Phase 5:
-LinkedIn
+~~LinkedIn~~ (cancelled — X is the only publishing platform)
 More news sources
 Advanced recommendation system
 Automated notifications

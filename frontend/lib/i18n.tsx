@@ -335,6 +335,11 @@ const M: Record<string, { tr: string; en: string }> = {
   "cp.copy": { tr: "Kopyala", en: "Copy" },
   "cp.copySource": { tr: "Kaynakla kopyala", en: "Copy + source" },
   "cp.copied": { tr: "Kopyalandı ✓", en: "Copied ✓" },
+  "cp.edit": { tr: "Düzenle", en: "Edit" },
+  "cp.save": { tr: "Kaydet", en: "Save" },
+  "cp.cancel": { tr: "Vazgeç", en: "Cancel" },
+  "cp.delete": { tr: "Sil", en: "Delete" },
+  "cp.chars": { tr: "{n} karakter", en: "{n} chars" },
   "cp.image": { tr: "Önerilen görsel", en: "Suggested image" },
   "cp.imageHint": {
     tr: "Kaynaktan alındı — tweete eklemek için indir veya bağlantıyı kopyala",

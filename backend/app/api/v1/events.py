@@ -18,6 +18,7 @@ from app.providers.factory import get_llm_provider
 from app.schemas.api import (
     ApproveResponse,
     CandidateRead,
+    CandidateUpdate,
     EventDetail,
     EventItem,
     EventList,
@@ -187,7 +188,7 @@ async def generate_event_content(
     session: AsyncSession = Depends(get_session),
     language: str = Query("", pattern="^(en|tr|)$"),
     kind: str = Query("", pattern="^(breaking|contrarian|technical|educational|question|)$"),
-    length: str = Query("short", pattern="^(short|long)$"),
+    length: str = Query("short", pattern="^(short|long|story|thread)$"),
 ) -> list[ContentCandidate]:
     event = await session.get(Event, event_id)
     if event is None:
@@ -222,6 +223,37 @@ async def list_event_candidates(
         .order_by(ContentCandidate.created_at.desc(), ContentCandidate.rank)
     )
     return list(rows.scalars())
+
+
+@router.patch("/{event_id}/candidates/{candidate_id}", response_model=CandidateRead)
+async def update_event_candidate(
+    event_id: uuid.UUID,
+    candidate_id: uuid.UUID,
+    payload: CandidateUpdate,
+    session: AsyncSession = Depends(get_session),
+) -> ContentCandidate:
+    """Tweak a generated draft before approving it (human-in-the-loop, PROJECT.md §24)."""
+    candidate = await session.get(ContentCandidate, candidate_id)
+    if candidate is None or candidate.event_id != event_id:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+    candidate.text = payload.text
+    await session.commit()
+    await session.refresh(candidate)
+    return candidate
+
+
+@router.delete("/{event_id}/candidates/{candidate_id}", status_code=204)
+async def delete_event_candidate(
+    event_id: uuid.UUID,
+    candidate_id: uuid.UUID,
+    session: AsyncSession = Depends(get_session),
+) -> None:
+    """Discard a generated draft you don't want to keep."""
+    candidate = await session.get(ContentCandidate, candidate_id)
+    if candidate is None or candidate.event_id != event_id:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+    await session.delete(candidate)
+    await session.commit()
 
 
 @router.post("/{event_id}/candidates/{candidate_id}/approve", response_model=ApproveResponse)
