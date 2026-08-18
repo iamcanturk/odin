@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import uuid
 from datetime import UTC, datetime
 
 import httpx
 import pytest
 from httpx import ASGITransport
+from sqlalchemy import select
 
 from app.core.db import get_session
 from app.main import create_app
@@ -89,3 +91,39 @@ async def test_published_posts_are_immutable(db_sessionmaker, client: httpx.Asyn
     # A published post's prediction is on record — editing or deleting would corrupt learning.
     assert (await client.patch(f"/api/v1/posts/{pid}", json={"text": "nope"})).status_code == 409
     assert (await client.delete(f"/api/v1/posts/{pid}")).status_code == 409
+
+
+async def test_mark_posted_merges_with_already_imported_tweet(
+    db_sessionmaker, client: httpx.AsyncClient
+) -> None:
+    """The extension usually imported the tweet already — that must not 500."""
+    from app.models import PostMetric
+
+    async with db_sessionmaker() as session:
+        draft = Post(platform="x", text="my draft", status="approved", origin="generated")
+        imported = Post(
+            platform="x", text="my draft", status="posted", origin="imported",
+            external_id="777",
+        )
+        session.add_all([draft, imported])
+        await session.flush()
+        session.add(PostMetric(post_id=imported.id, likes=42, impressions=9000))
+        await session.commit()
+        draft_id, imported_id = str(draft.id), str(imported.id)
+
+    resp = await client.post(f"/api/v1/posts/{draft_id}/posted", json={"external_id": "777"})
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "posted"
+    assert resp.json()["external_id"] == "777"
+
+    async with db_sessionmaker() as session:
+        # The duplicate is gone and its real metrics now hang off the draft, so the
+        # prediction and the actuals can finally be compared.
+        assert await session.get(Post, uuid.UUID(imported_id)) is None
+        metrics = (
+            await session.execute(
+                select(PostMetric).where(PostMetric.post_id == uuid.UUID(draft_id))
+            )
+        ).scalars().all()
+        assert len(metrics) == 1
+        assert metrics[0].likes == 42

@@ -6,6 +6,8 @@ format (short / long / story / thread) and the audience (technical / general).
 
 from __future__ import annotations
 
+import uuid
+
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
@@ -13,8 +15,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.db import get_session
-from app.models import StyleReference
-from app.pipeline.content import ANGLES, compose_freeform
+from app.models import ContentItem, StyleReference
+from app.pipeline.content import ANGLES, compose_freeform, refine_text
 from app.providers.factory import get_llm_provider
 
 router = APIRouter(prefix="/compose", tags=["compose"])
@@ -38,6 +40,50 @@ class ComposeDraft(BaseModel):
     novelty_score: float
     risk_score: float
     rank: int
+
+
+class RefineRequest(BaseModel):
+    """Rewrite an existing post with your own instruction."""
+
+    text: str = Field(min_length=1, max_length=10000)
+    instruction: str = Field(min_length=3, max_length=2000)
+    language: str = Field(default="", pattern="^(en|tr|)$")
+    length: str = Field(default="short", pattern="^(short|long|story|thread)$")
+    event_id: uuid.UUID | None = None  # pull the event's sources in as context
+
+
+class RefineResponse(BaseModel):
+    text: str
+
+
+@router.post("/refine", response_model=RefineResponse)
+async def refine(
+    payload: RefineRequest, session: AsyncSession = Depends(get_session)
+) -> RefineResponse:
+    """e.g. 'summarise this as if I read the article and it explains X'."""
+    lang = payload.language or get_settings().content_language
+
+    context = ""
+    if payload.event_id is not None:
+        rows = await session.execute(
+            select(ContentItem.title, ContentItem.text)
+            .where(ContentItem.event_id == payload.event_id)
+            .limit(5)
+        )
+        context = "\n".join(
+            f"- {' '.join(p for p in (t, x) if p)}" for t, x in rows
+        ).strip()
+
+    text = await refine_text(
+        session,
+        payload.text,
+        payload.instruction,
+        get_llm_provider(),
+        language=lang,
+        length=payload.length,
+        context=context,
+    )
+    return RefineResponse(text=text)
 
 
 class StyleRef(BaseModel):

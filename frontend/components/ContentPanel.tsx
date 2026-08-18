@@ -16,6 +16,7 @@ import {
 } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { Panel } from "./ui";
+import { RefineEditor } from "./RefineEditor";
 
 const KINDS: TweetKind[] = ["", "breaking", "contrarian", "technical", "educational", "question"];
 
@@ -99,32 +100,17 @@ function CandidateCard({
       </div>
 
       {editing ? (
-        <div className="mt-2">
-          <textarea
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            rows={Math.min(12, Math.max(3, Math.ceil(draft.length / 60)))}
-            className="w-full rounded-md border border-border bg-panel-2 px-3 py-2 text-sm outline-none focus:border-accent/60 resize-y"
-          />
-          <div className="flex items-center gap-2 mt-2">
-            <button
-              onClick={() => save.mutate()}
-              disabled={save.isPending || !draft.trim()}
-              className="rounded border border-good/50 px-2 py-1 text-[11px] text-good hover:bg-good/10 disabled:opacity-40 transition-colors"
-            >
-              {t("cp.save")}
-            </button>
-            <button
-              onClick={() => {
-                setDraft(c.text);
-                setEditing(false);
-              }}
-              className="rounded border border-border px-2 py-1 text-[11px] text-muted hover:text-text transition-colors"
-            >
-              {t("cp.cancel")}
-            </button>
-          </div>
-        </div>
+        <RefineEditor
+          value={draft}
+          onChange={setDraft}
+          onSave={() => save.mutate()}
+          onCancel={() => {
+            setDraft(c.text);
+            setEditing(false);
+          }}
+          saving={save.isPending}
+          eventId={eventId}
+        />
       ) : (
         <p className="text-sm text-text mt-2 whitespace-pre-wrap">{text}</p>
       )}

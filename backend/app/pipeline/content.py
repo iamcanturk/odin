@@ -226,6 +226,53 @@ async def generate_candidates(
     return drafts
 
 
+_REFINE_SYSTEM = (
+    "You rewrite an existing X (Twitter) post according to the author's instruction. "
+    "Follow the instruction exactly. Keep the post self-contained: name the subject and "
+    "say what happened and why it matters, so a reader with no prior context understands "
+    "it. Do NOT use em dashes or en dashes (— –), no hashtag spam, no clichés. "
+    "Return ONLY the rewritten post text, with no preamble, commentary or quotes."
+)
+
+
+async def refine_text(
+    session: AsyncSession,
+    text: str,
+    instruction: str,
+    llm: LLMProvider,
+    *,
+    language: str = "en",
+    length: str = "short",
+    context: str = "",
+) -> str:
+    """Rewrite a post following the user's own instruction (e.g. 'summarise the article')."""
+    profile = (
+        await session.execute(select(StyleProfile).where(StyleProfile.key == "default"))
+    ).scalar_one_or_none()
+    name = _LANG_NAME.get(language, "English")
+    system = " ".join(
+        [
+            _REFINE_SYSTEM,
+            f"Write in {name}.",
+            LENGTHS.get(length, LENGTHS["short"]),
+            _voice_hint(profile),
+        ]
+    ).strip()
+
+    parts = [f"Current post:\n{text}", f"\nInstruction: {instruction}"]
+    if context:
+        parts.append(f"\nSource material you may draw on:\n{context}")
+    parts.append("\nRewrite the post:")
+
+    raw = await llm.generate(
+        "\n".join(parts), system=system, temperature=0.7, max_tokens=_max_tokens(length)
+    )
+    result = _sanitize(raw)
+    await persist_usage(session, purpose="refine")
+    await session.commit()
+    return result
+
+
 async def compose_freeform(
     session: AsyncSession,
     topic: str,

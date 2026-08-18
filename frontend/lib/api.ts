@@ -485,6 +485,14 @@ export interface StyleRef {
 
 export const fetchStyleRefs = () => getJSON<StyleRef[]>("/compose/styles");
 
+export const refineText = (body: {
+  text: string;
+  instruction: string;
+  language?: string;
+  length?: ComposeLength;
+  event_id?: string;
+}) => send<{ text: string }>("/compose/refine", "POST", body);
+
 export const compose = (body: {
   topic: string;
   language?: string;
