@@ -14,9 +14,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.db import get_session
-from app.models import ProfileSnapshot
+from app.models import ProfileSnapshot, StyleReference
 from app.pipeline.posts import import_user_post
-from app.schemas.x import XIngestBatch, XIngestResult, XProfileIngest
+from app.schemas.x import (
+    XIngestBatch,
+    XIngestResult,
+    XProfileIngest,
+    XStyleSampleBatch,
+)
 
 router = APIRouter(prefix="/ingest", tags=["ingest"])
 
@@ -52,6 +57,47 @@ async def ingest_x(
         duplicates=len(batch.items) - imported,
         events_created=0,
     )
+
+
+@router.post("/x/style", status_code=201)
+async def ingest_x_style(
+    batch: XStyleSampleBatch,
+    session: AsyncSession = Depends(get_session),
+    x_ingest_token: str | None = Header(default=None, alias="X-Ingest-Token"),
+) -> dict[str, int | str]:
+    """Store tweets from an account the user wants to write like. Deduped per handle+id."""
+    _verify_token(x_ingest_token)
+    handle = batch.handle.lstrip("@").lower()
+
+    ids = [it.id for it in batch.items if it.id]
+    existing: set[str] = set()
+    if ids:
+        rows = await session.execute(
+            select(StyleReference.external_id).where(
+                StyleReference.handle == handle, StyleReference.external_id.in_(ids)
+            )
+        )
+        existing = {r[0] for r in rows}
+
+    stored = 0
+    for item in batch.items:
+        if not item.id or not item.text or item.id in existing:
+            continue
+        existing.add(item.id)
+        session.add(
+            StyleReference(
+                handle=handle,
+                external_id=item.id,
+                text=item.text,
+                url=item.url,
+                likes=item.metrics.likes if item.metrics else None,
+                reposts=item.metrics.reposts if item.metrics else None,
+                posted_at=item.created_at,
+            )
+        )
+        stored += 1
+    await session.commit()
+    return {"handle": handle, "received": len(batch.items), "stored": stored}
 
 
 @router.post("/x/profile", status_code=201)

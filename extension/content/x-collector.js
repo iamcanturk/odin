@@ -193,12 +193,35 @@ async function flush() {
 
 // Background refresh: the service worker's alarm asks open X tabs to re-scan, so your own
 // posts' metrics and profile stats stay fresh even while you're not actively browsing.
+// Collect the visible tweets authored by the profile you're currently viewing, and send
+// them as STYLE REFERENCES so ODIN can learn to write like that account.
+async function sampleStyle() {
+  const handle = currentHandle();
+  if (!handle) return { error: "Open a profile page (x.com/<handle>)" };
+
+  let articles = document.querySelectorAll('article[data-testid="tweet"]');
+  if (articles.length === 0) articles = document.querySelectorAll('article[role="article"]');
+  const items = [];
+  for (const article of articles) {
+    const item = extractTweet(article);
+    // Only that account's own tweets (skip retweets/replies from others in the timeline).
+    if (item && normHandle(item.author_handle) === handle) items.push(item);
+  }
+  if (items.length === 0) return { error: "No tweets found — scroll the profile first" };
+
+  return chrome.runtime.sendMessage({ type: "odin/style", handle, items });
+}
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === "odin/rescan") {
     lastProfileKey = null; // force a fresh profile snapshot even if the DOM is unchanged
     scan();
     sendResponse({ ok: true, buffered: buffer.size });
     return true;
+  }
+  if (message?.type === "odin/sample-style") {
+    sampleStyle().then(sendResponse);
+    return true; // async response
   }
   return false;
 });

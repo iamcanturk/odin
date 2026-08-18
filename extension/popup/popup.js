@@ -23,6 +23,32 @@ toggleBtn.addEventListener("click", async () => {
   await render();
 });
 
+// "Take style sample": ask the active X profile tab to collect that account's visible
+// tweets and send them as STYLE REFERENCES (not events, not your own posts).
+const sampleBtn = document.getElementById("sample-style");
+const sampleResult = document.getElementById("sample-result");
+
+sampleBtn?.addEventListener("click", async () => {
+  sampleBtn.disabled = true;
+  sampleResult.textContent = "Sampling…";
+  sampleResult.style.color = "#8b93a3";
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab || !/^https:\/\/(x|twitter)\.com\//.test(tab.url || "")) {
+      throw new Error("Open an X profile first");
+    }
+    const res = await chrome.tabs.sendMessage(tab.id, { type: "odin/sample-style" });
+    if (res?.error) throw new Error(res.error);
+    sampleResult.textContent = `@${res.handle}: ${res.stored} new / ${res.received} seen`;
+    sampleResult.style.color = "#37d39b";
+  } catch (err) {
+    sampleResult.textContent = String(err.message || err);
+    sampleResult.style.color = "#ff6b5e";
+  } finally {
+    sampleBtn.disabled = false;
+  }
+});
+
 document.getElementById("open-options").addEventListener("click", () => {
   chrome.runtime.openOptionsPage();
 });

@@ -38,6 +38,13 @@ class XIngestResult(BaseModel):
     events_created: int
 
 
+class XStyleSampleBatch(BaseModel):
+    """Tweets from an account whose writing style the user wants to emulate."""
+
+    handle: str = Field(min_length=1, max_length=120)
+    items: list[XIngestItem] = Field(default_factory=list)
+
+
 class XProfileIngest(BaseModel):
     handle: str = Field(min_length=1, max_length=120)
     followers: int | None = None

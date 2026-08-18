@@ -46,6 +46,8 @@ const M: Record<string, { tr: string; en: string }> = {
   "co.fmt.long": { tr: "Uzun", en: "Long" },
   "co.fmt.story": { tr: "Hikaye", en: "Story" },
   "co.fmt.thread": { tr: "Thread (4-6)", en: "Thread (4-6)" },
+  "co.style": { tr: "Tarz", en: "Style" },
+  "co.style.mine": { tr: "Kendi tarzım", en: "My own voice" },
   "co.generate": { tr: "Üret", en: "Generate" },
   "co.generating": { tr: "Üretiliyor…", en: "Generating…" },
   "co.empty": {

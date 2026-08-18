@@ -439,12 +439,20 @@ export interface ComposeDraft {
   rank: number;
 }
 
+export interface StyleRef {
+  handle: string;
+  samples: number;
+}
+
+export const fetchStyleRefs = () => getJSON<StyleRef[]>("/compose/styles");
+
 export const compose = (body: {
   topic: string;
   language?: string;
   length?: ComposeLength;
   audience?: ComposeAudience;
   kind?: TweetKind;
+  style_handle?: string;
 }) => send<ComposeDraft[]>("/compose", "POST", body);
 
 // ---- System / observability (PROJECT.md §44) ----

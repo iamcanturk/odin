@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import ContentCandidate, ContentItem, Event, StyleProfile
+from app.models import ContentCandidate, ContentItem, Event, StyleProfile, StyleReference
 from app.pipeline.cost import persist_usage
 from app.pipeline.xsim import simulate
 from app.providers.base import LLMProvider
@@ -101,6 +101,27 @@ def _voice_hint(profile: StyleProfile | None) -> str:
     if bits:
         bits.append("Match this voice without copying past posts verbatim.")
     return " ".join(bits)
+
+
+async def style_reference_hint(session: AsyncSession, handle: str, *, n: int = 6) -> str:
+    """Build a 'write like @handle' instruction from their best-performing sampled tweets."""
+    h = handle.lstrip("@").lower()
+    rows = await session.execute(
+        select(StyleReference)
+        .where(StyleReference.handle == h)
+        .order_by(StyleReference.likes.desc().nullslast())
+        .limit(n)
+    )
+    samples = [r.text.strip() for r in rows.scalars() if r.text and r.text.strip()]
+    if not samples:
+        return ""
+    joined = "\n---\n".join(s[:600] for s in samples)
+    return (
+        f"Emulate the WRITING STYLE of @{h}. Here are examples of their posts that performed "
+        f"well:\n{joined}\n"
+        "Match their structure, rhythm, tone and how they open and close a post. "
+        "Do NOT copy their sentences or reuse their specific topics — only the style."
+    )
 
 
 def _max_tokens(length: str) -> int:
@@ -214,14 +235,16 @@ async def compose_freeform(
     length: str = "short",
     audience: str = "technical",
     angles: list[str] | None = None,
+    style_handle: str = "",
     n: int = 3,
 ) -> list[CandidateDraft]:
     """Generate posts about ANY topic the user types — no event needed (PROJECT.md §21)."""
     profile = (
         await session.execute(select(StyleProfile).where(StyleProfile.key == "default"))
     ).scalar_one_or_none()
+    style = await style_reference_hint(session, style_handle) if style_handle else ""
     system = _system_for(
-        language, length=length, voice=_voice_hint(profile), audience=audience
+        language, length=length, voice=_voice_hint(profile), audience=audience, style=style
     )
     selected = (
         {a: ANGLES[a] for a in angles if a in ANGLES}
