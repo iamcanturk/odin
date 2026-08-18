@@ -226,6 +226,110 @@ async def generate_candidates(
     return drafts
 
 
+# Reply angles are NOT the post angles. A reply enters someone else's conversation, so it
+# has to earn its place there; "breaking news" makes no sense as a reply.
+REPLY_ANGLES: dict[str, tuple[str, float, float]] = {
+    "extend": (
+        "Agree with the core point, then add one concrete thing they did not say. "
+        "No flattery, no 'great post' — lead with the addition.",
+        0.5,
+        0.15,
+    ),
+    "counterexample": (
+        "Politely offer a specific counterexample or edge case where this does not hold. "
+        "Be concrete, not contrarian for its own sake.",
+        0.8,
+        0.5,
+    ),
+    "question": (
+        "Ask one sharp, genuine question that the author would actually want to answer.",
+        0.6,
+        0.2,
+    ),
+    "experience": (
+        "Share a short first-hand experience that speaks to their point. Specific detail "
+        "beats generality.",
+        0.65,
+        0.2,
+    ),
+}
+
+_REPLY_SYSTEM = (
+    "You write replies on X, in the author's own voice. A reply enters someone else's "
+    "conversation, so it must add value on its own terms. Rules: (1) Never open with "
+    "flattery ('Great post', 'This!', 'So true'). (2) Be specific — a reply that could be "
+    "posted under any tweet is worthless. (3) Stay respectful even when disagreeing; the "
+    "goal is a conversation, not a dunk. (4) Do NOT use em dashes or en dashes (— –), no "
+    "hashtags, no emoji unless the author's voice uses them. (5) Keep it under 280 "
+    "characters. Return ONLY the reply text, no preamble or quotes."
+)
+
+
+async def generate_replies(
+    session: AsyncSession,
+    parent_text: str,
+    llm: LLMProvider,
+    *,
+    parent_handle: str = "",
+    thread_context: str = "",
+    language: str = "en",
+    angles: list[str] | None = None,
+) -> list[CandidateDraft]:
+    """Draft replies to someone else's tweet (PROJECT.md §21).
+
+    Replying to an already-accelerating post borrows its distribution, and xsim weights a
+    reply at 5.0 against a like's 0.5 — this is the highest-leverage action ODIN can
+    recommend, and it previously had no way to produce one.
+    """
+    profile = (
+        await session.execute(select(StyleProfile).where(StyleProfile.key == "default"))
+    ).scalar_one_or_none()
+    name = _LANG_NAME.get(language, "English")
+    system = " ".join([_REPLY_SYSTEM, f"Write in {name}.", _voice_hint(profile)]).strip()
+
+    selected = (
+        {a: REPLY_ANGLES[a] for a in angles if a in REPLY_ANGLES} if angles else REPLY_ANGLES
+    )
+    if not selected:
+        selected = REPLY_ANGLES
+
+    drafts: list[CandidateDraft] = []
+    for angle, (instruction, novelty, risk) in selected.items():
+        parts = []
+        if parent_handle:
+            parts.append(f"You are replying to @{parent_handle.lstrip('@')}.")
+        parts.append(f"Their post:\n{parent_text}")
+        if thread_context:
+            parts.append(f"Earlier in the thread:\n{thread_context}")
+        parts.append(f"Task: {instruction}\nWrite the reply:")
+
+        raw = await llm.generate(
+            "\n\n".join(parts), system=system, temperature=0.8, max_tokens=160
+        )
+        text = _sanitize(raw)
+        xsim = simulate(text).sim_score
+        drafts.append(
+            CandidateDraft(
+                text=text,
+                angle=angle,
+                platform="x",
+                trend_score=0.0,
+                personal_score=0.0,
+                source_confidence=0.0,
+                novelty_score=novelty,
+                risk_score=risk,
+                viral_score=_viral_score(xsim, 0.0, 0.0, novelty, risk),
+            )
+        )
+
+    drafts.sort(key=lambda d: d.viral_score, reverse=True)
+    for i, d in enumerate(drafts, start=1):
+        d.rank = i
+    await persist_usage(session, purpose="reply")
+    await session.commit()
+    return drafts
+
+
 _REFINE_SYSTEM = (
     "You rewrite an existing X (Twitter) post according to the author's instruction. "
     "Follow the instruction exactly. Keep the post self-contained: name the subject and "
