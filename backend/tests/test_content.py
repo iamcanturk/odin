@@ -75,6 +75,29 @@ async def test_unknown_kind_falls_back_to_all_angles() -> None:
     assert {d.angle for d in drafts} == set(ANGLES)
 
 
+class _DashLLM(LLMProvider):
+    async def generate(self, prompt, *, system=None, temperature=0.7, max_tokens=512) -> str:
+        return 'Big news — the thing shipped – and it is fast.'
+
+
+@pytest.mark.asyncio
+async def test_sanitize_strips_em_and_en_dashes() -> None:
+    drafts = await generate_candidates(_event(), [], _DashLLM(), angles=["breaking"])
+    assert "—" not in drafts[0].text
+    assert "–" not in drafts[0].text
+    assert drafts[0].text == "Big news, the thing shipped, and it is fast."
+
+
+@pytest.mark.asyncio
+async def test_length_and_voice_flow_into_system_prompt() -> None:
+    llm = _CapturingLLM()
+    await generate_candidates(
+        _event(), [], llm, angles=["breaking"], length="long", voice="Author's voice: punchy."
+    )
+    assert any("longer" in s for s in llm.systems)
+    assert any("punchy" in s for s in llm.systems)
+
+
 @pytest.mark.asyncio
 async def test_contrarian_scores_high_novelty() -> None:
     drafts = await generate_candidates(_event(), [], _EchoLLM())

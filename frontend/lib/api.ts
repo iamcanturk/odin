@@ -204,13 +204,16 @@ export type TweetKind =
   | "educational"
   | "question";
 
+export type TweetLength = "short" | "long";
+
 export const generateCandidates = (
   eventId: string,
-  opts?: { language?: string; kind?: TweetKind },
+  opts?: { language?: string; kind?: TweetKind; length?: TweetLength },
 ) => {
   const qs = new URLSearchParams();
   if (opts?.language) qs.set("language", opts.language);
   if (opts?.kind) qs.set("kind", opts.kind);
+  if (opts?.length) qs.set("length", opts.length);
   const q = qs.toString();
   return send<Candidate[]>(`/events/${eventId}/generate${q ? `?${q}` : ""}`, "POST");
 };
