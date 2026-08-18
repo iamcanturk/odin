@@ -330,6 +330,81 @@ async def generate_replies(
     return drafts
 
 
+# On X the first line does nearly all the work — it decides whether a post_click ever
+# happens. Generating 25 hooks costs about one long post in tokens but explores the
+# highest-leverage dimension far more densely than 5 whole drafts do.
+HOOK_TEMPLATES = (
+    "I think [CONCEPT] is the [CATEGORY] that [OUTCOME].",
+    "[TECHNIQUE] separates [WINNERS] from [EVERYONE ELSE].",
+    "What used to require [OLD COMPLEXITY] now [NEW SIMPLICITY].",
+    "Most people get [TOPIC] wrong because [REASON].",
+    "[NUMBER] things about [TOPIC] that [SURPRISE].",
+)
+
+_HOOK_SYSTEM = (
+    "You write opening lines for X posts — the first line only, never the whole post. "
+    "Each must be concrete and specific enough that a stranger stops scrolling, and must "
+    "name the actual subject rather than teasing it vaguely. No clickbait that the post "
+    "cannot pay off. Do NOT use em dashes or en dashes (— –), no hashtags, no emoji. "
+    "Return ONE hook per line, no numbering, no quotes, nothing else."
+)
+
+
+@dataclass
+class Hook:
+    text: str
+    xsim_score: float
+    rank: int = 0
+
+
+async def generate_hooks(
+    session: AsyncSession,
+    topic: str,
+    llm: LLMProvider,
+    *,
+    language: str = "en",
+    n: int = 20,
+) -> list[Hook]:
+    """Generate opening lines and rank them with xsim rather than a hand-made rubric."""
+    profile = (
+        await session.execute(select(StyleProfile).where(StyleProfile.key == "default"))
+    ).scalar_one_or_none()
+    name = _LANG_NAME.get(language, "English")
+    system = " ".join([_HOOK_SYSTEM, f"Write in {name}.", _voice_hint(profile)]).strip()
+    templates = "\n".join(f"- {t}" for t in HOOK_TEMPLATES)
+
+    raw = await llm.generate(
+        f"Subject: {topic}\n\nPatterns you may draw on (adapt, do not fill in literally):\n"
+        f"{templates}\n\nWrite {n} different opening lines:",
+        system=system,
+        temperature=0.95,
+        max_tokens=900,
+    )
+
+    seen: set[str] = set()
+    hooks: list[Hook] = []
+    for line in raw.splitlines():
+        text = _sanitize(re.sub(r"^\s*(?:[-*•]|\d+[.)])\s*", "", line))
+        if len(text) < 12 or text.lower() in seen:
+            continue
+        seen.add(text.lower())
+        # post_click and copy_link_share are what a hook actually drives.
+        r = simulate(text)
+        score = round(
+            100 * (0.6 * r.probabilities["post_click"] / 0.06
+                   + 0.4 * r.probabilities["copy_link_share"] / 0.04),
+            2,
+        )
+        hooks.append(Hook(text=text, xsim_score=min(score, 100.0)))
+
+    hooks.sort(key=lambda h: h.xsim_score, reverse=True)
+    for i, h in enumerate(hooks, start=1):
+        h.rank = i
+    await persist_usage(session, purpose="hooks")
+    await session.commit()
+    return hooks
+
+
 _REFINE_SYSTEM = (
     "You rewrite an existing X (Twitter) post according to the author's instruction. "
     "Follow the instruction exactly. Keep the post self-contained: name the subject and "

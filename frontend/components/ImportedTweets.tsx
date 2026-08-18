@@ -71,6 +71,21 @@ function Row({ tw }: { tw: ImportedTweet }) {
         <Metric value={tw.reposts} label={t("pf.mReposts")} />
         <Metric value={tw.replies} label={t("pf.mReplies")} />
         <Metric value={tw.impressions} label={t("pf.mViews")} />
+        {tw.repost_ratio != null && (
+          <span
+            className="text-[11px] text-muted tabular-nums"
+            title={t("pf.amplified")}
+          >
+            <span className="text-accent font-medium">{tw.repost_ratio.toFixed(2)}</span>{" "}
+            {t("pf.rtRatio")}
+          </span>
+        )}
+        {tw.bookmark_ratio != null && (
+          <span className="text-[11px] text-muted tabular-nums">
+            <span className="text-accent font-medium">{tw.bookmark_ratio.toFixed(2)}</span>{" "}
+            {t("pf.bmRatio")}
+          </span>
+        )}
         {when && <span className="text-[11px] text-faint ml-auto font-mono">{when}</span>}
         {tw.url && (
           <a

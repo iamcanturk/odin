@@ -5,10 +5,14 @@ import { useMutation } from "@tanstack/react-query";
 import { useQuery } from "@tanstack/react-query";
 import {
   compose,
+  critiqueDraft,
   fetchStyleRefs,
+  generateHooks,
   type ComposeAudience,
   type ComposeDraft,
   type ComposeLength,
+  type Critique,
+  type Hook,
   type TweetKind,
 } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
@@ -205,6 +209,119 @@ export default function ComposePage() {
           ))}
         </div>
       )}
+
+      <HooksPanel topic={topic} lang={lang} />
+      <CritiquePanel lang={lang} />
     </div>
+  );
+}
+
+/** The first line does nearly all the work, so explore it densely and score it. */
+function HooksPanel({ topic, lang }: { topic: string; lang: "tr" | "en" }) {
+  const { t } = useI18n();
+  const gen = useMutation({ mutationFn: () => generateHooks({ topic, language: lang }) });
+  const hooks: Hook[] = gen.data ?? [];
+
+  return (
+    <Panel className="p-5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h2 className="text-xs uppercase tracking-widest text-muted">{t("co.hooks")}</h2>
+          <p className="text-[11px] text-faint mt-1">{t("co.hooksHint")}</p>
+        </div>
+        <button
+          onClick={() => gen.mutate()}
+          disabled={topic.trim().length < 3 || gen.isPending}
+          className="rounded-md border border-accent/50 px-3 py-1.5 text-sm text-accent hover:bg-accent/10 disabled:opacity-40 transition-colors"
+        >
+          {gen.isPending ? t("co.generating") : t("co.hooks")}
+        </button>
+      </div>
+      {gen.error && <p className="text-hot text-xs mt-2">{(gen.error as Error).message}</p>}
+      {hooks.length > 0 && (
+        <div className="flex flex-col gap-1.5 mt-3">
+          {hooks.map((h) => (
+            <div
+              key={h.rank}
+              className="flex items-start gap-3 rounded-md border border-border-soft bg-panel-2/50 px-3 py-2"
+            >
+              <span className="font-mono text-[10px] text-faint tabular-nums pt-0.5">
+                {String(h.rank).padStart(2, "0")}
+              </span>
+              <p className="text-sm text-text flex-1">{h.text}</p>
+              <span className="font-mono text-xs tabular-nums text-accent">
+                {h.xsim_score.toFixed(0)}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </Panel>
+  );
+}
+
+/** Ordered adversarial critique: value first, polish last. */
+function CritiquePanel({ lang }: { lang: "tr" | "en" }) {
+  const { t } = useI18n();
+  const [text, setText] = useState("");
+  const run = useMutation({ mutationFn: () => critiqueDraft({ text, language: lang }) });
+  const r: Critique | undefined = run.data;
+
+  return (
+    <Panel className="p-5">
+      <h2 className="text-xs uppercase tracking-widest text-muted">{t("co.critique")}</h2>
+      <p className="text-[11px] text-faint mt-1">{t("co.critiqueHint")}</p>
+
+      <textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        rows={3}
+        className="w-full mt-3 rounded-md border border-border bg-panel-2 px-3 py-2 text-sm outline-none focus:border-accent/60 resize-y"
+      />
+      <button
+        onClick={() => run.mutate()}
+        disabled={text.trim().length < 3 || run.isPending}
+        className="mt-2 rounded-md border border-accent/50 px-3 py-1.5 text-sm text-accent hover:bg-accent/10 disabled:opacity-40 transition-colors"
+      >
+        {run.isPending ? t("co.generating") : t("co.critique")}
+      </button>
+      {run.error && <p className="text-hot text-xs mt-2">{(run.error as Error).message}</p>}
+
+      {r && (
+        <div className="mt-4 flex flex-col gap-2">
+          {r.stopped_at && (
+            <p className="text-xs text-warn">{t("co.stopped", { n: r.stopped_at })}</p>
+          )}
+          <div className="flex items-center gap-3 text-[11px] font-mono text-muted">
+            <span>
+              {t("co.before")} {r.xsim_before.toFixed(0)}
+            </span>
+            <span>→</span>
+            <span className={r.xsim_after >= r.xsim_before ? "text-good" : "text-hot"}>
+              {t("co.after")} {r.xsim_after.toFixed(0)}
+            </span>
+          </div>
+          {r.passes.map((p) => (
+            <div key={p.name} className="rounded-md border border-border-soft bg-panel-2/50 p-3">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-mono uppercase tracking-widest text-accent">
+                  {p.name}
+                </span>
+                <span
+                  className={`text-[10px] font-mono uppercase ${p.verdict === "pass" ? "text-good" : "text-warn"}`}
+                >
+                  {p.verdict}
+                </span>
+              </div>
+              {p.rationale && <p className="text-[11px] text-muted mt-1">{p.rationale}</p>}
+            </div>
+          ))}
+          <div className="rounded-md border border-good/40 bg-good/5 p-3">
+            <p className="text-[10px] uppercase tracking-widest text-good mb-1">final</p>
+            <p className="text-sm text-text whitespace-pre-wrap">{r.final}</p>
+          </div>
+        </div>
+      )}
+    </Panel>
   );
 }

@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.db import get_session
 from app.models import Post, PostMetric, ProfileSnapshot, StyleProfile
 from app.pipeline.style import build_style_profile
+from app.pipeline.velocity import amplification_ratios
 from app.providers.factory import get_embedding_provider
 from app.schemas.api import (
     ImportedTweet,
@@ -91,6 +92,11 @@ async def imported_tweets(
                 bookmarks=latest.bookmarks if latest else None,
                 impressions=latest.impressions if latest else None,
                 history=history,
+                **amplification_ratios(
+                    likes=latest.likes if latest else None,
+                    reposts=latest.reposts if latest else None,
+                    bookmarks=latest.bookmarks if latest else None,
+                ),
             )
         )
     return out

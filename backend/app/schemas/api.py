@@ -253,6 +253,10 @@ class ImportedTweet(BaseModel):
     replies: int | None = None
     bookmarks: int | None = None
     impressions: int | None = None
+    # Did it get amplified, or merely approved? Both are stronger learning targets than
+    # raw likes: a repost or a save costs the reader more than a tap.
+    repost_ratio: float | None = None
+    bookmark_ratio: float | None = None
     history: list[MetricPoint] = Field(default_factory=list)
 
 

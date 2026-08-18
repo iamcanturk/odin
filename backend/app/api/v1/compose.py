@@ -16,7 +16,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings
 from app.core.db import get_session
 from app.models import ContentItem, StyleReference
-from app.pipeline.content import ANGLES, compose_freeform, generate_replies, refine_text
+from app.pipeline.content import (
+    ANGLES,
+    compose_freeform,
+    generate_hooks,
+    generate_replies,
+    refine_text,
+)
+from app.pipeline.critique import critique
 from app.providers.factory import get_llm_provider
 
 router = APIRouter(prefix="/compose", tags=["compose"])
@@ -122,6 +129,68 @@ async def reply(
         )
         for d in drafts
     ]
+
+
+class HookRequest(BaseModel):
+    topic: str = Field(min_length=3, max_length=2000)
+    language: str = Field(default="", pattern="^(en|tr|)$")
+    n: int = Field(default=20, ge=5, le=40)
+
+
+class HookRead(BaseModel):
+    text: str
+    xsim_score: float
+    rank: int
+
+
+@router.post("/hooks", response_model=list[HookRead])
+async def hooks(
+    payload: HookRequest, session: AsyncSession = Depends(get_session)
+) -> list[HookRead]:
+    """The first line decides whether anyone reads the rest — explore it densely."""
+    lang = payload.language or get_settings().content_language
+    out = await generate_hooks(
+        session, payload.topic, get_llm_provider(), language=lang, n=payload.n
+    )
+    return [HookRead(text=h.text, xsim_score=h.xsim_score, rank=h.rank) for h in out]
+
+
+class CritiqueRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=10000)
+    language: str = Field(default="", pattern="^(en|tr|)$")
+
+
+class CritiquePassRead(BaseModel):
+    name: str
+    verdict: str
+    rationale: str
+    text: str
+
+
+class CritiqueRead(BaseModel):
+    original: str
+    final: str
+    stopped_at: str | None = None
+    xsim_before: float
+    xsim_after: float
+    passes: list[CritiquePassRead]
+
+
+@router.post("/critique", response_model=CritiqueRead)
+async def critique_draft(
+    payload: CritiqueRequest, session: AsyncSession = Depends(get_session)
+) -> CritiqueRead:
+    """Skeptic -> Expert -> Scroller -> Competitor -> Editor, value before polish."""
+    lang = payload.language or get_settings().content_language
+    r = await critique(session, payload.text, get_llm_provider(), language=lang)
+    return CritiqueRead(
+        original=r.original,
+        final=r.final,
+        stopped_at=r.stopped_at,
+        xsim_before=r.xsim_before,
+        xsim_after=r.xsim_after,
+        passes=[CritiquePassRead(**p.__dict__) for p in r.passes],
+    )
 
 
 class StyleRef(BaseModel):

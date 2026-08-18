@@ -450,6 +450,8 @@ export interface ImportedTweet {
   replies: number | null;
   bookmarks: number | null;
   impressions: number | null;
+  repost_ratio: number | null;
+  bookmark_ratio: number | null;
   history: MetricPoint[];
 }
 
@@ -533,6 +535,34 @@ export const refineText = (body: {
   length?: ComposeLength;
   event_id?: string;
 }) => send<{ text: string }>("/compose/refine", "POST", body);
+
+export interface Hook {
+  text: string;
+  xsim_score: number;
+  rank: number;
+}
+
+export const generateHooks = (body: { topic: string; language?: string; n?: number }) =>
+  send<Hook[]>("/compose/hooks", "POST", body);
+
+export interface CritiquePass {
+  name: string;
+  verdict: "pass" | "fail";
+  rationale: string;
+  text: string;
+}
+
+export interface Critique {
+  original: string;
+  final: string;
+  stopped_at: string | null;
+  xsim_before: number;
+  xsim_after: number;
+  passes: CritiquePass[];
+}
+
+export const critiqueDraft = (body: { text: string; language?: string }) =>
+  send<Critique>("/compose/critique", "POST", body);
 
 export type ReplyKind = "" | "extend" | "counterexample" | "question" | "experience";
 
