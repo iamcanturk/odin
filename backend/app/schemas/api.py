@@ -232,3 +232,17 @@ class EvaluationSummary(BaseModel):
     rmse: float
     precision_at_3: float | None = None
     items: list[EvaluationItem]
+
+
+# ---- Notifications ----
+
+
+class NotificationRead(ORMModel):
+    id: uuid.UUID
+    type: str
+    severity: str
+    title: str
+    body: str | None = None
+    event_id: uuid.UUID | None = None
+    read: bool
+    created_at: datetime
