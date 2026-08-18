@@ -99,6 +99,10 @@ function extractTweet(article) {
   if (!idMatch) return null;
   const id = idMatch[1];
 
+  // Exact figures already captured from GraphQL win over anything scraped from the DOM.
+  const fromApi = graphqlTweets.get(id);
+  if (fromApi) return fromApi;
+
   const body = text(article.querySelector('[data-testid="tweetText"]'));
   if (!body) return null;
 
@@ -144,6 +148,40 @@ function scan() {
   scanProfile();
   ensureStyleButton();
 }
+
+// ---- GraphQL feed (primary source) ----
+// The MAIN-world hook posts exact integers straight from X's own API responses. The DOM
+// scan above stays as a fallback, but anything that arrives here overrides it: aria-labels
+// are rounded and localised ("1,2 B"), these are the real numbers.
+
+const graphqlTweets = new Map(); // id -> item
+const GRAPHQL_CACHE_CAP = 500;
+const BUFFER_CAP = 400;
+
+function capMap(map, cap) {
+  while (map.size > cap) map.delete(map.keys().next().value); // Maps keep insertion order
+}
+
+window.addEventListener("message", (event) => {
+  if (event.source !== window) return;
+  const data = event.data;
+  if (!data || data.source !== "odin-xhook" || !Array.isArray(data.tweets)) return;
+  if (!extAlive()) return;
+
+  for (const tweet of data.tweets) {
+    if (!tweet?.id) continue;
+    graphqlTweets.set(tweet.id, tweet);
+    // Exact numbers beat whatever the DOM scan put in the buffer.
+    if (buffer.has(tweet.id)) buffer.set(tweet.id, tweet);
+  }
+  // Anything of ours in here is worth sending even if it never rendered on screen.
+  for (const tweet of data.tweets) {
+    if (tweet?.id && !buffer.has(tweet.id)) buffer.set(tweet.id, tweet);
+  }
+  capMap(graphqlTweets, GRAPHQL_CACHE_CAP);
+  capMap(buffer, BUFFER_CAP);
+  scheduleSend();
+});
 
 // ---- Profile stats capture (PROJECT.md §12: follower/following over time) ----
 
