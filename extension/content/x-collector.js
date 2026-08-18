@@ -81,6 +81,7 @@ function scan() {
   if (added > 0) console.debug(`[ODIN] captured ${added} post(s), buffer=${buffer.size}`);
   scheduleSend();
   scanProfile();
+  ensureStyleButton();
 }
 
 // ---- Profile stats capture (PROJECT.md §12: follower/following over time) ----
@@ -191,25 +192,119 @@ async function flush() {
   }
 }
 
-// Background refresh: the service worker's alarm asks open X tabs to re-scan, so your own
-// posts' metrics and profile stats stay fresh even while you're not actively browsing.
-// Collect the visible tweets authored by the profile you're currently viewing, and send
-// them as STYLE REFERENCES so ODIN can learn to write like that account.
-async function sampleStyle() {
-  const handle = currentHandle();
-  if (!handle) return { error: "Open a profile page (x.com/<handle>)" };
+// ---- Style sampling ----
+// Collect the tweets of the profile you're viewing, keep the ones that ACTUALLY PERFORMED,
+// and send them as STYLE REFERENCES so ODIN writes new posts inspired by that style.
 
+const SAMPLE_SCROLL_ROUNDS = 6;
+const SAMPLE_SCROLL_WAIT_MS = 900;
+const SAMPLE_KEEP_TOP = 25;
+
+function engagementOf(item) {
+  const m = item.metrics || {};
+  // Weight the signals X itself rewards most: reposts/replies over raw likes.
+  return (m.likes || 0) + 3 * (m.reposts || 0) + 2 * (m.replies || 0) + (m.bookmarks || 0);
+}
+
+function collectAuthorTweets(handle, into) {
   let articles = document.querySelectorAll('article[data-testid="tweet"]');
   if (articles.length === 0) articles = document.querySelectorAll('article[role="article"]');
-  const items = [];
   for (const article of articles) {
     const item = extractTweet(article);
     // Only that account's own tweets (skip retweets/replies from others in the timeline).
-    if (item && normHandle(item.author_handle) === handle) items.push(item);
+    if (item && normHandle(item.author_handle) === handle) into.set(item.id, item);
   }
-  if (items.length === 0) return { error: "No tweets found — scroll the profile first" };
+}
+
+async function sampleStyle({ onProgress } = {}) {
+  const handle = currentHandle();
+  if (!handle) return { error: "Open a profile page (x.com/<handle>)" };
+
+  // Auto-scroll so we see a real sample, not just the 3 tweets above the fold.
+  const found = new Map();
+  const startY = window.scrollY;
+  for (let round = 0; round < SAMPLE_SCROLL_ROUNDS; round++) {
+    collectAuthorTweets(handle, found);
+    onProgress?.(found.size);
+    const before = found.size;
+    window.scrollBy(0, window.innerHeight * 1.5);
+    await new Promise((r) => setTimeout(r, SAMPLE_SCROLL_WAIT_MS));
+    collectAuthorTweets(handle, found);
+    // Stop early if scrolling stopped yielding anything new.
+    if (found.size === before && round > 1) break;
+  }
+  window.scrollTo(0, startY);
+
+  if (found.size === 0) return { error: "No tweets found — is this a profile page?" };
+
+  // Keep the best performers: those are the ones worth being inspired by.
+  const ranked = Array.from(found.values()).sort((a, b) => engagementOf(b) - engagementOf(a));
+  const items = ranked.slice(0, SAMPLE_KEEP_TOP);
+  console.debug(`[ODIN] sampled ${found.size} tweets from @${handle}, sending top ${items.length}`);
 
   return chrome.runtime.sendMessage({ type: "odin/style", handle, items });
+}
+
+// ---- In-page button ----
+// A floating "learn this style" button that appears on any profile page.
+
+const BTN_ID = "odin-style-btn";
+
+function toast(el, msg, color) {
+  el.textContent = msg;
+  el.style.borderColor = color;
+  el.style.color = color;
+}
+
+function ensureStyleButton() {
+  const handle = currentHandle();
+  const existing = document.getElementById(BTN_ID);
+
+  if (!handle) {
+    existing?.remove();
+    return;
+  }
+  if (existing) {
+    if (existing.dataset.handle !== handle) {
+      existing.dataset.handle = handle;
+      toast(existing, `ODIN: @${handle} tarzını öğren`, "#5aa2ff");
+    }
+    return;
+  }
+
+  const btn = document.createElement("button");
+  btn.id = BTN_ID;
+  btn.dataset.handle = handle;
+  btn.textContent = `ODIN: @${handle} tarzını öğren`;
+  btn.style.cssText = [
+    "position:fixed", "right:20px", "bottom:20px", "z-index:99999",
+    "padding:10px 14px", "border-radius:10px", "border:1px solid #5aa2ff",
+    "background:#0d1017", "color:#5aa2ff", "font:500 13px system-ui,sans-serif",
+    "cursor:pointer", "box-shadow:0 6px 24px rgba(0,0,0,.45)",
+  ].join(";");
+
+  btn.addEventListener("click", async () => {
+    if (btn.disabled) return;
+    btn.disabled = true;
+    const original = `ODIN: @${btn.dataset.handle} tarzını öğren`;
+    toast(btn, "Tweetler taranıyor…", "#f2c14e");
+    try {
+      const res = await sampleStyle({
+        onProgress: (n) => toast(btn, `Taranıyor… ${n} tweet`, "#f2c14e"),
+      });
+      if (res?.error) throw new Error(res.error);
+      toast(btn, `✓ ${res.stored} yeni örnek alındı`, "#3dd4a0");
+    } catch (err) {
+      toast(btn, `✕ ${err.message || err}`, "#ff6b5e");
+    } finally {
+      setTimeout(() => {
+        toast(btn, original, "#5aa2ff");
+        btn.disabled = false;
+      }, 3500);
+    }
+  });
+
+  document.body.appendChild(btn);
 }
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {

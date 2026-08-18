@@ -295,6 +295,7 @@ async def create_candidates(
     language: str = "en",
     angles: list[str] | None = None,
     length: str = "short",
+    style_handle: str = "",
 ) -> list[ContentCandidate]:
     """Generate + persist ranked candidates. Regeneration APPENDS (keeps history)."""
     rows = await session.execute(
@@ -307,6 +308,7 @@ async def create_candidates(
     profile = (
         await session.execute(select(StyleProfile).where(StyleProfile.key == "default"))
     ).scalar_one_or_none()
+    style = await style_reference_hint(session, style_handle) if style_handle else ""
 
     drafts = await generate_candidates(
         event,
@@ -317,6 +319,7 @@ async def create_candidates(
         angles=angles,
         length=length,
         voice=_voice_hint(profile),
+        style=style,
     )
 
     session.add_all(

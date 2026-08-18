@@ -189,6 +189,7 @@ async def generate_event_content(
     language: str = Query("", pattern="^(en|tr|)$"),
     kind: str = Query("", pattern="^(breaking|contrarian|technical|educational|question|)$"),
     length: str = Query("short", pattern="^(short|long|story|thread)$"),
+    style_handle: str = Query("", max_length=120),
 ) -> list[ContentCandidate]:
     event = await session.get(Event, event_id)
     if event is None:
@@ -196,7 +197,13 @@ async def generate_event_content(
     lang = language or get_settings().content_language
     angles = [kind] if kind else None
     return await create_candidates(
-        session, event, get_llm_provider(), language=lang, angles=angles, length=length
+        session,
+        event,
+        get_llm_provider(),
+        language=lang,
+        angles=angles,
+        length=length,
+        style_handle=style_handle,
     )
 
 
