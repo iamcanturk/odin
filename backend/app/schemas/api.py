@@ -223,6 +223,21 @@ class PostRead(ORMModel):
     created_at: datetime
 
 
+class ImportedTweet(BaseModel):
+    """The user's own imported tweet + its latest engagement snapshot."""
+
+    id: uuid.UUID
+    external_id: str | None = None
+    text: str
+    url: str | None = None
+    posted_at: datetime | None = None
+    likes: int | None = None
+    reposts: int | None = None
+    replies: int | None = None
+    bookmarks: int | None = None
+    impressions: int | None = None
+
+
 class ApproveResponse(BaseModel):
     post: PostRead
     prediction: PredictionRead

@@ -92,6 +92,19 @@ const M: Record<string, { tr: string; en: string }> = {
     tr: "Henüz profil verisi yok — uzantıda handle'ını ayarla ve X profilini aç.",
     en: "No profile data yet — set your handle in the extension and visit your X profile.",
   },
+  "pf.myTweets": { tr: "Attığın tweetler", en: "Your tweets" },
+  "pf.myTweetsHint": {
+    tr: "Uzantının içe aktardığı kendi gönderilerin ve etkileşimleri",
+    en: "Your own posts the extension imported, with engagement",
+  },
+  "pf.noTweets": {
+    tr: "Henüz tweet yok — uzantıda handle'ını ayarla ve kendi profilinde gezin.",
+    en: "No tweets yet — set your handle in the extension and browse your own profile.",
+  },
+  "pf.mLikes": { tr: "beğeni", en: "likes" },
+  "pf.mReposts": { tr: "RT", en: "reposts" },
+  "pf.mReplies": { tr: "yanıt", en: "replies" },
+  "pf.mViews": { tr: "görüntülenme", en: "views" },
   "header.signOut": { tr: "Çıkış", en: "Sign out" },
   "header.notifications": { tr: "Bildirimler", en: "Notifications" },
 
@@ -158,6 +171,10 @@ const M: Record<string, { tr: string; en: string }> = {
   "ev.back": { tr: "← konsola dön", en: "← back to console" },
   "ev.trend": { tr: "Trend", en: "Trend" },
   "ev.dismiss": { tr: "İlgilenmiyorum", en: "Not interested" },
+  "ev.gone": {
+    tr: "Bu olay artık mevcut değil (silinmiş ya da temizlenmiş olabilir).",
+    en: "This event no longer exists (it may have been dismissed or cleared).",
+  },
   "ev.opportunity": { tr: "Fırsat", en: "Opportunity" },
   "ev.personal": { tr: "Kişisel", en: "Personal" },
   "ev.confidence": { tr: "Güven", en: "Confidence" },

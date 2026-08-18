@@ -11,6 +11,7 @@ import {
 import { useI18n } from "@/lib/i18n";
 import { EmptyState, ErrorState, LoadingState, PageHeader, Panel } from "@/components/ui";
 import { GrowthPanel } from "@/components/GrowthPanel";
+import { ImportedTweets } from "@/components/ImportedTweets";
 
 const FEATURE_LABELS: Record<string, string> = {
   avg_length: "Avg length (chars)",
@@ -102,6 +103,8 @@ export default function ProfilePage() {
       />
 
       <GrowthPanel />
+
+      <ImportedTweets />
 
       {isLoading ? (
         <LoadingState label="Loading profile…" />

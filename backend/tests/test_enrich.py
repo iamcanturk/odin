@@ -37,6 +37,12 @@ def test_gate_already_summarized_skipped() -> None:
     assert should_enrich(_event(trend_score=90, summary="done"), threshold=50) is False
 
 
+def test_gate_topic_matched_enriched_even_if_low_score() -> None:
+    # Personally-relevant (topic-matched) events always get a summary.
+    assert should_enrich(_event(trend_score=5), threshold=50, has_topic=True) is True
+    assert should_enrich(_event(trend_score=5), threshold=50, has_topic=False) is False
+
+
 def test_parse_enrichment_plain_json() -> None:
     summary, entities = parse_enrichment('{"summary": "A thing happened.", "entities": ["OpenAI"]}')
     assert summary == "A thing happened."
