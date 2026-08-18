@@ -238,7 +238,18 @@ function velocityOf(tweet) {
   return { vph, tier, ageHours };
 }
 
+// Injecting into X's React-managed DOM is the riskiest thing this script does, so it is
+// separately switchable: turning it off keeps all data collection running.
+let badgesEnabled = true;
+chrome.storage?.local?.get({ odinBadges: true }, (cfg) => {
+  badgesEnabled = cfg.odinBadges !== false;
+});
+chrome.storage?.onChanged?.addListener((changes) => {
+  if (changes.odinBadges) badgesEnabled = changes.odinBadges.newValue !== false;
+});
+
 function paintVelocityBadges() {
+  if (!badgesEnabled) return;
   let articles = document.querySelectorAll('article[data-testid="tweet"]');
   if (articles.length === 0) articles = document.querySelectorAll('article[role="article"]');
   for (const article of articles) {
@@ -262,7 +273,13 @@ function paintVelocityBadges() {
       (nameRow || article).appendChild(badge);
     }
     const style = TIER_STYLE[v.tier];
-    badge.textContent = `${style.label} ${formatRate(v.vph)}`;
+    const label = `${style.label} ${formatRate(v.vph)}`;
+    // CRITICAL: writing to the DOM here fires the MutationObserver, which calls scan(),
+    // which calls this function again. Writing unconditionally is an infinite loop that
+    // pegs the main thread and makes X unusable. Only touch the DOM when it changed.
+    if (badge.dataset.label === label) continue;
+    badge.dataset.label = label;
+    badge.textContent = label;
     badge.style.color = style.color;
     badge.style.borderColor = style.color + "66";
     badge.title = `${Math.round(v.vph).toLocaleString()} görüntülenme/saat · ${v.ageHours.toFixed(1)} saatlik`;
@@ -604,6 +621,26 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 });
 
 // Observe timeline mutations (new tweets as you scroll) + an initial scan.
-const observer = new MutationObserver(() => scan());
+// X mutates the DOM constantly, and our own writes mutate it too. Coalesce bursts into
+// one scan per frame-ish window so a re-entrant scan can never spiral.
+const SCAN_THROTTLE_MS = 400;
+let scanTimer = null;
+let scanning = false;
+
+function requestScan() {
+  if (scanTimer) return;
+  scanTimer = setTimeout(() => {
+    scanTimer = null;
+    if (scanning) return; // never re-enter
+    scanning = true;
+    try {
+      scan();
+    } finally {
+      scanning = false;
+    }
+  }, SCAN_THROTTLE_MS);
+}
+
+const observer = new MutationObserver(requestScan);
 observer.observe(document.body, { childList: true, subtree: true });
 scan();
