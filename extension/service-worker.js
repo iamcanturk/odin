@@ -93,6 +93,23 @@ async function handleCollect(items) {
   }
 }
 
+async function handleObserved(items) {
+  const cfg = await getConfig();
+  if (!cfg.odinEnabled || !cfg.odinToken || !cfg.odinEndpoint) return { skipped: true };
+  if (!items.length) return { stored: 0 };
+  try {
+    const res = await fetch(`${cfg.odinEndpoint}/ingest/x/observed`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Ingest-Token": cfg.odinToken },
+      body: JSON.stringify({ items }),
+    });
+    if (!res.ok) return { error: `HTTP ${res.status}` };
+    return await res.json();
+  } catch (err) {
+    return { error: String(err) };
+  }
+}
+
 async function handleProfile(profile) {
   const cfg = await getConfig();
   if (!cfg.odinEnabled) return { skipped: "disabled" };
@@ -259,6 +276,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       await sampleViaBackgroundTab(normalizeHandle(cfg.odinHandle));
       sendResponse({ ok: true, via: "background tab" });
     })();
+    return true; // async response
+  }
+  if (message?.type === "odin/observed") {
+    handleObserved(message.items || []).then((r) => sendResponse(r), () => sendResponse({}));
     return true; // async response
   }
   if (message?.type === "odin/style") {

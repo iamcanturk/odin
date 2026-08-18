@@ -6,6 +6,7 @@ from app.models.content_item import ContentItem
 from app.models.event import Event
 from app.models.notification import Notification
 from app.models.observability import LlmUsage, RunLog
+from app.models.observed_tweet import ObservedTweet
 from app.models.post import Post, PostMetric, PostPrediction
 from app.models.profile_snapshot import ProfileSnapshot
 from app.models.source import Source
@@ -21,6 +22,7 @@ __all__ = [
     "EventTopic",
     "LlmUsage",
     "Notification",
+    "ObservedTweet",
     "Post",
     "RunLog",
     "PostMetric",

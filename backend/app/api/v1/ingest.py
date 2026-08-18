@@ -8,18 +8,21 @@ content comes from the other sources (RSS/HN/GitHub/Reddit/Google Trends).
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.db import get_session
-from app.models import ProfileSnapshot, StyleReference
+from app.models import ObservedTweet, ProfileSnapshot, StyleReference
 from app.pipeline.posts import import_user_post
 from app.pipeline.watch import posts_due
 from app.schemas.x import (
     XIngestBatch,
     XIngestResult,
+    XObservedBatch,
     XProfileIngest,
     XStyleSampleBatch,
 )
@@ -58,6 +61,57 @@ async def ingest_x(
         duplicates=len(batch.items) - imported,
         events_created=0,
     )
+
+
+@router.post("/x/observed", status_code=201)
+async def ingest_x_observed(
+    batch: XObservedBatch,
+    session: AsyncSession = Depends(get_session),
+    x_ingest_token: str | None = Header(default=None, alias="X-Ingest-Token"),
+) -> dict[str, int]:
+    """Record tweets seen while browsing (X Pulse corpus).
+
+    Each sighting is bucketed to the minute so repeat views of the same tweet build a
+    time series instead of thousands of near-identical rows.
+    """
+    _verify_token(x_ingest_token)
+    now = datetime.now(UTC).replace(second=0, microsecond=0)
+
+    ids = [it.id for it in batch.items if it.id]
+    existing: set[str] = set()
+    if ids:
+        rows = await session.execute(
+            select(ObservedTweet.external_id).where(
+                ObservedTweet.external_id.in_(ids), ObservedTweet.observed_at == now
+            )
+        )
+        existing = {r[0] for r in rows}
+
+    stored = 0
+    for item in batch.items:
+        if not item.id or not item.text or item.id in existing:
+            continue
+        existing.add(item.id)
+        m = item.metrics
+        session.add(
+            ObservedTweet(
+                external_id=item.id,
+                author_handle=(item.author_handle or "").lstrip("@").lower() or None,
+                text=item.text,
+                url=item.url,
+                lang=item.lang,
+                likes=m.likes if m else None,
+                replies=m.replies if m else None,
+                reposts=m.reposts if m else None,
+                bookmarks=m.bookmarks if m else None,
+                impressions=m.impressions if m else None,
+                posted_at=item.created_at,
+                observed_at=now,
+            )
+        )
+        stored += 1
+    await session.commit()
+    return {"received": len(batch.items), "stored": stored}
 
 
 @router.get("/x/watch")

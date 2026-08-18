@@ -45,6 +45,12 @@ class XStyleSampleBatch(BaseModel):
     items: list[XIngestItem] = Field(default_factory=list)
 
 
+class XObservedBatch(BaseModel):
+    """Tweets seen while browsing — corpus for X Pulse, not events."""
+
+    items: list[XIngestItem] = Field(default_factory=list)
+
+
 class XProfileIngest(BaseModel):
     handle: str = Field(min_length=1, max_length=120)
     followers: int | None = None

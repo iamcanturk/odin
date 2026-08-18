@@ -18,6 +18,7 @@ from app.api.v1 import (
     performance,
     posts,
     profile,
+    pulse,
     sources,
     system,
     tester,
@@ -44,3 +45,4 @@ api_router.include_router(notifications.router, dependencies=[_protected])
 api_router.include_router(performance.router, dependencies=[_protected])
 api_router.include_router(system.router, dependencies=[_protected])
 api_router.include_router(compose.router, dependencies=[_protected])
+api_router.include_router(pulse.router, dependencies=[_protected])

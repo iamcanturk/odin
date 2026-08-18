@@ -477,6 +477,34 @@ export interface Timing {
 
 export const fetchTiming = () => getJSON<Timing>("/performance/timing");
 
+// ---- X Pulse: what's spiking on X right now ----
+
+export interface PulseTweet {
+  external_id: string;
+  author_handle: string | null;
+  text: string;
+  url: string | null;
+  likes: number | null;
+  reposts: number | null;
+  replies: number | null;
+  bookmarks: number | null;
+  impressions: number | null;
+  posted_at: string | null;
+  views_per_hour: number;
+  score: number;
+  tier: "cold" | "warm" | "hot";
+  age_hours: number;
+}
+
+export interface PulseSummary {
+  observed: number;
+  window_hours: number;
+  items: PulseTweet[];
+}
+
+export const fetchPulse = (minTier?: "cold" | "warm" | "hot") =>
+  getJSON<PulseSummary>(`/pulse${minTier && minTier !== "cold" ? `?min_tier=${minTier}` : ""}`);
+
 // ---- Composer: generate posts about any topic ----
 
 export type ComposeLength = "short" | "long" | "story" | "thread";
