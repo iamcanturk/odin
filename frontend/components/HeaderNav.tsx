@@ -16,6 +16,7 @@ const LINKS: { href: string; key: string }[] = [
   { href: "/", key: "nav.console" },
   { href: "/post-now", key: "nav.postNow" },
   { href: "/topics", key: "nav.topics" },
+  { href: "/sources", key: "nav.sources" },
   { href: "/tester", key: "nav.tester" },
   { href: "/profile", key: "nav.profile" },
   { href: "/drafts", key: "nav.drafts" },
