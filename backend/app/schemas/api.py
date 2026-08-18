@@ -174,3 +174,40 @@ class TesterResponse(BaseModel):
     weaknesses: list[str]
     scoring_version: str
     disclaimer: str
+
+
+# ---- Publish workflow ----
+
+
+class PredictionRead(ORMModel):
+    id: uuid.UUID
+    predicted_at: datetime
+    model_version: str
+    viral_score: float
+    x_simulation: float
+    opportunity_score: float
+    predicted_impressions: int | None = None
+    predicted_likes: int | None = None
+    predicted_replies: int | None = None
+    predicted_reposts: int | None = None
+
+
+class PostRead(ORMModel):
+    id: uuid.UUID
+    platform: str
+    external_id: str | None = None
+    text: str
+    status: str
+    origin: str
+    angle: str | None = None
+    event_id: uuid.UUID | None = None
+    created_at: datetime
+
+
+class ApproveResponse(BaseModel):
+    post: PostRead
+    prediction: PredictionRead
+
+
+class MarkPostedRequest(BaseModel):
+    external_id: str = Field(min_length=1, max_length=128)
