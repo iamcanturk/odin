@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
+
 import httpx
 import jwt
 import pytest
@@ -71,3 +73,27 @@ async def test_protected_route_requires_token(app_with_auth) -> None:
         # /auth/me with token works
         me = await c.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
         assert me.status_code == 200 and me.json()["username"] == "admin"
+
+
+def test_expired_token_rejected() -> None:
+    s = _settings()
+    expired = jwt.encode(
+        {"sub": "admin", "exp": int((datetime.now(UTC) - timedelta(hours=1)).timestamp())},
+        s.jwt_secret,
+        algorithm="HS256",
+    )
+    with pytest.raises(jwt.ExpiredSignatureError):
+        decode_token(expired, s)
+
+
+async def test_open_when_auth_disabled() -> None:
+    # No password configured -> auth disabled -> protected routes are open (no token).
+    app = create_app()  # default settings have empty auth_password in tests
+    transport = ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as c:
+        cfg = await c.get("/api/v1/auth/config")
+        assert cfg.json()["auth_required"] is False
+        # login is disabled when there's no password
+        assert (
+            await c.post("/api/v1/auth/login", json={"username": "admin", "password": "x"})
+        ).status_code == 400
