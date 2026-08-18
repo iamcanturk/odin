@@ -131,8 +131,25 @@ class RSSAdapter(SourceAdapter):
         return result.status == "ok" and (result.not_modified or bool(result.items))
 
 
+# Tracking pixels / spacers that some feeds embed.
+_IMAGE_BLOCKLIST = ("pixel", "1x1", "spacer", "blank.gif", "feedburner", "doubleclick")
+
+_IMG_SRC_RE = re.compile(r"""<img[^>]+src=["\']([^"\']+)["\']""", re.IGNORECASE)
+
+
+def _html_blobs(entry: dict[str, Any]) -> list[str]:
+    """The raw (un-stripped) HTML a feed carries, where images usually hide."""
+    blobs: list[str] = []
+    if isinstance(entry.get("summary"), str):
+        blobs.append(entry["summary"])
+    content = entry.get("content")
+    if isinstance(content, list):
+        blobs.extend(c.get("value", "") for c in content if isinstance(c, dict))
+    return blobs
+
+
 def _extract_images(entry: dict[str, Any]) -> list[dict[str, str]]:
-    """Pull image URLs from common RSS/Atom media fields (best-effort, deduped)."""
+    """Pull image URLs from media fields, then from <img> tags in the feed HTML."""
     urls: list[str] = []
 
     def add(u: object) -> None:
@@ -156,4 +173,11 @@ def _extract_images(entry: dict[str, Any]) -> list[dict[str, str]]:
     for link in entry.get("links") or []:
         if isinstance(link, dict) and link.get("rel") == "enclosure" and is_image(link):
             add(link.get("href"))
+    # Fallback: most feeds ship the article image as an <img> inside the description HTML.
+    if not urls:
+        for blob in _html_blobs(entry):
+            for src in _IMG_SRC_RE.findall(blob):
+                add(src)
+    # Drop tracking pixels and other 1x1 junk.
+    urls = [u for u in urls if not any(bad in u.lower() for bad in _IMAGE_BLOCKLIST)]
     return [{"type": "image", "url": u} for u in urls[:3]]

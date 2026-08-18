@@ -58,6 +58,42 @@ MEDIA_RSS = b"""<?xml version="1.0" encoding="UTF-8"?>
 """
 
 
+HTML_IMG_RSS = b"""<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"><channel>
+  <title>Blog Feed</title>
+  <item>
+    <title>Article with an inline image</title>
+    <link>https://example.com/x</link>
+    <guid>urn:x</guid>
+    <description>&lt;p&gt;&lt;img src="https://cdn.example.com/hero.jpg"/&gt;
+      Body text&lt;/p&gt;</description>
+  </item>
+  <item>
+    <title>Article with only a tracking pixel</title>
+    <link>https://example.com/y</link>
+    <guid>urn:y</guid>
+    <description>&lt;img src="https://feeds.example.com/~r/pixel.gif"/&gt;text</description>
+  </item>
+</channel></rss>
+"""
+
+
+def test_normalize_falls_back_to_inline_img_tags() -> None:
+    # Most feeds ship the article image inside the description HTML, not media:content.
+    entries, _ = parse_feed(HTML_IMG_RSS)
+    adapter = RSSAdapter("https://example.com/feed")
+    item = adapter.normalize(entries[0])
+    assert [m["url"] for m in item.media] == ["https://cdn.example.com/hero.jpg"]
+    # ...and the text is still stripped of HTML.
+    assert item.text and "<img" not in item.text
+
+
+def test_normalize_skips_tracking_pixels() -> None:
+    entries, _ = parse_feed(HTML_IMG_RSS)
+    adapter = RSSAdapter("https://example.com/feed")
+    assert adapter.normalize(entries[1]).media == []
+
+
 def test_normalize_extracts_source_images() -> None:
     entries, _ = parse_feed(MEDIA_RSS)
     adapter = RSSAdapter("https://example.com/feed")

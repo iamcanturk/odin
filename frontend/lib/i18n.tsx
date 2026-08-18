@@ -364,6 +364,17 @@ const M: Record<string, { tr: string; en: string }> = {
   "cp.cancel": { tr: "Vazgeç", en: "Cancel" },
   "cp.delete": { tr: "Sil", en: "Delete" },
   "cp.chars": { tr: "{n} karakter", en: "{n} chars" },
+  "cp.ai": { tr: "Yapay zekaya söyle", en: "Tell the AI" },
+  "cp.aiPlaceholder": {
+    tr: "örn. bu makaleyi okumuşum gibi özetle, daha samimi yaz, kısalt…",
+    en: "e.g. summarise it as if I read the article, make it warmer, shorten it…",
+  },
+  "cp.aiRun": { tr: "Uygula", en: "Apply" },
+  "cp.aiRunning": { tr: "Yazılıyor…", en: "Rewriting…" },
+  "cp.aiHint": {
+    tr: "Metni yapay zekaya istediğin gibi yeniden yazdır, sonra Kaydet'e bas.",
+    en: "Have the AI rewrite the text however you want, then hit Save.",
+  },
   "cp.image": { tr: "Önerilen görsel", en: "Suggested image" },
   "cp.imageHint": {
     tr: "Kaynaktan alındı — tweete eklemek için indir veya bağlantıyı kopyala",

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import ContentCandidate, Event, Post, PostMetric, PostPrediction
@@ -79,9 +79,41 @@ async def approve_candidate(
 
 
 async def mark_posted(session: AsyncSession, post_id: uuid.UUID, external_id: str) -> Post | None:
+    """Link a draft to the tweet it became.
+
+    The extension usually imported that same tweet already (as one of the user's own
+    posts), so a row with this external_id can exist. Merging beats failing: the draft
+    holds the PREDICTION and the import holds the ACTUAL metrics — the feedback loop only
+    works when both live on one post.
+    """
     post = await session.get(Post, post_id)
     if post is None:
         return None
+
+    twin = (
+        await session.execute(
+            select(Post).where(
+                Post.platform == post.platform,
+                Post.external_id == external_id,
+                Post.id != post.id,
+            )
+        )
+    ).scalar_one_or_none()
+
+    if twin is not None:
+        # Move the imported metrics onto the draft, then drop the duplicate.
+        await session.execute(
+            update(PostMetric).where(PostMetric.post_id == twin.id).values(post_id=post.id)
+        )
+        if twin.posted_at and not post.posted_at:
+            post.posted_at = twin.posted_at
+            post.hour = twin.hour
+            post.day_of_week = twin.day_of_week
+        twin.external_id = None  # free the unique key before we claim it
+        await session.flush()
+        await session.delete(twin)
+        await session.flush()
+
     post.external_id = external_id
     post.status = "posted"
     return post
