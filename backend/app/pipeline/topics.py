@@ -72,6 +72,7 @@ async def apply_topic_matching(
     embedder: EmbeddingProvider,
     *,
     min_relevance: float = 0.05,
+    top_k: int = 3,
 ) -> None:
     """Match each event against enabled topics; upsert event_topics + personal_relevance."""
     if not events:
@@ -98,10 +99,13 @@ async def apply_topic_matching(
         centroid = list(event.centroid) if event.centroid is not None else None
         matches = [(v.id, score_topic(event_keywords, centroid, v)) for v in views]
 
-        # Replace this event's topic links.
+        # Replace this event's topic links — keep only the top-K most relevant
+        # (e5 gives moderate similarity to many topics, so cap for a clean signal).
         await session.execute(delete(EventTopic).where(EventTopic.event_id == event.id))
-        for topic_id, rel in matches:
-            if rel >= min_relevance:
-                session.add(EventTopic(event_id=event.id, topic_id=topic_id, relevance=rel))
+        kept = sorted(
+            (m for m in matches if m[1] >= min_relevance), key=lambda m: m[1], reverse=True
+        )[:top_k]
+        for topic_id, rel in kept:
+            session.add(EventTopic(event_id=event.id, topic_id=topic_id, relevance=rel))
 
         event.personal_relevance = best_relevance(matches)
