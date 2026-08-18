@@ -77,6 +77,25 @@ const M: Record<string, { tr: string; en: string }> = {
   "co.style": { tr: "Tarz", en: "Style" },
   "co.style.mine": { tr: "Kendi tarzım", en: "My own voice" },
   "co.generate": { tr: "Üret", en: "Generate" },
+  "co.hooks": { tr: "Kanca üret", en: "Generate hooks" },
+  "co.hooksHint": {
+    tr: "İlk satır her şeyi belirler. 20 açılış üretip xsim ile puanlar.",
+    en: "The first line decides everything. Generates 20 openers and scores them with xsim.",
+  },
+  "co.critique": { tr: "Eleştiriden geçir", en: "Run critique" },
+  "co.critiqueHint": {
+    tr: "Şüpheci → Uzman → Kaydıran → Rakip → Editör. Değer önce, cila sonra.",
+    en: "Skeptic → Expert → Scroller → Competitor → Editor. Value first, polish last.",
+  },
+  "co.stopped": {
+    tr: "{n} adımında durdu — bu taslağın sorunu kelimeler değil, değer.",
+    en: "Stopped at {n} — this draft has a value problem, not a wording one.",
+  },
+  "co.before": { tr: "önce", en: "before" },
+  "co.after": { tr: "sonra", en: "after" },
+  "pf.amplified": { tr: "Yükseltme", en: "Amplification" },
+  "pf.rtRatio": { tr: "RT/beğeni", en: "RT/like" },
+  "pf.bmRatio": { tr: "kaydetme/beğeni", en: "save/like" },
   "co.generating": { tr: "Üretiliyor…", en: "Generating…" },
   "co.empty": {
     tr: "Bir konu yaz ve Üret'e bas.",
