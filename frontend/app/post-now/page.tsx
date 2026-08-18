@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { fetchEvents, recommendedAction } from "@/lib/api";
+import { fetchEvents, fetchTiming, recommendedAction } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { EmptyState, ErrorState, LoadingState, PageHeader, Panel, ScoreMeter } from "@/components/ui";
 
@@ -26,10 +26,26 @@ export default function PostNowPage() {
     queryKey: ["events", { orderBy: "opportunity_score" }],
     queryFn: () => fetchEvents({ limit: 25, orderBy: "opportunity_score" }),
   });
+  const { data: timing } = useQuery({
+    queryKey: ["performance", "timing"],
+    queryFn: fetchTiming,
+  });
 
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title={t("pn.title")} subtitle={t("pn.subtitle")} />
+
+      {timing?.enough_data && timing.best_hour != null && (
+        <Panel className="p-4 flex items-center gap-3">
+          <span className="text-[10px] uppercase tracking-widest text-muted">
+            {t("tm.bestHour")}
+          </span>
+          <span className="font-mono text-lg tabular-nums text-good">
+            {String(timing.best_hour).padStart(2, "0")}:00
+          </span>
+          <span className="text-[11px] text-faint">{t("tm.hint")}</span>
+        </Panel>
+      )}
 
       {isLoading ? (
         <LoadingState />

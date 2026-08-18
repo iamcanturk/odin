@@ -439,6 +439,28 @@ export interface ImportedTweet {
 
 export const fetchImportedTweets = () => getJSON<ImportedTweet[]>("/profile/tweets");
 
+// ---- Best time to post ----
+
+export interface TimeSlot {
+  label: string;
+  key: number;
+  score: number;
+  posts: number;
+  avg_engagement: number;
+}
+
+export interface Timing {
+  total_posts: number;
+  enough_data: boolean;
+  min_posts: number;
+  best_hour: number | null;
+  best_day: number | null;
+  by_hour: TimeSlot[];
+  by_day: TimeSlot[];
+}
+
+export const fetchTiming = () => getJSON<Timing>("/performance/timing");
+
 // ---- Composer: generate posts about any topic ----
 
 export type ComposeLength = "short" | "long" | "story" | "thread";
