@@ -134,6 +134,21 @@ const M: Record<string, { tr: string; en: string }> = {
   "pf.mReposts": { tr: "RT", en: "reposts" },
   "pf.mReplies": { tr: "yanıt", en: "replies" },
   "pf.mViews": { tr: "görüntülenme", en: "views" },
+
+  // best time to post
+  "tm.title": { tr: "En iyi paylaşım zamanı", en: "Best time to post" },
+  "tm.hint": {
+    tr: "Kendi gönderilerinin etkileşimine göre — kitlen ne zaman aktif",
+    en: "From your own posts' engagement — when your audience is active",
+  },
+  "tm.bestHour": { tr: "En iyi saat", en: "Best hour" },
+  "tm.bestDay": { tr: "En iyi gün", en: "Best day" },
+  "tm.byHour": { tr: "Saate göre", en: "By hour" },
+  "tm.byDay": { tr: "Güne göre", en: "By day" },
+  "tm.notEnough": {
+    tr: "Yeterli veri yok — en az {n} gönderi gerekiyor. Uzantı kendi tweetlerini topladıkça dolacak.",
+    en: "Not enough data yet — needs at least {n} posts. It fills up as the extension imports your tweets.",
+  },
   "header.signOut": { tr: "Çıkış", en: "Sign out" },
   "header.notifications": { tr: "Bildirimler", en: "Notifications" },
 

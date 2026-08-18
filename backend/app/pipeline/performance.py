@@ -82,6 +82,93 @@ def _rank(buckets: dict[str, list[float]]) -> list[Category]:
     return cats
 
 
+DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+# Below this many posts a "best time" claim is noise, not a finding.
+MIN_POSTS_FOR_TIMING = 5
+
+
+@dataclass
+class TimeSlot:
+    label: str
+    key: int  # hour 0-23, or weekday 0-6
+    score: float  # 0-100, relative to the user's best slot
+    posts: int
+    avg_engagement: float
+
+
+@dataclass
+class TimingSummary:
+    total_posts: int = 0
+    enough_data: bool = False
+    min_posts: int = MIN_POSTS_FOR_TIMING
+    best_hour: int | None = None
+    best_day: int | None = None
+    by_hour: list[TimeSlot] = field(default_factory=list)
+    by_day: list[TimeSlot] = field(default_factory=list)
+
+
+def _slots(buckets: dict[int, list[float]], labeller) -> list[TimeSlot]:
+    averaged = {k: (sum(v) / len(v), len(v)) for k, v in buckets.items() if v}
+    if not averaged:
+        return []
+    top = max(avg for avg, _ in averaged.values()) or 1.0
+    slots = [
+        TimeSlot(
+            label=labeller(k),
+            key=k,
+            score=round(100.0 * avg / top, 1),
+            posts=n,
+            avg_engagement=round(avg, 1),
+        )
+        for k, (avg, n) in averaged.items()
+    ]
+    slots.sort(key=lambda s: s.key)
+    return slots
+
+
+async def compute_timing(session: AsyncSession) -> TimingSummary:
+    """When does THIS user's audience actually engage? (PROJECT.md §10, §31)
+
+    Uses the hour/day captured on each imported post plus its latest metric snapshot.
+    Deliberately refuses to guess from a handful of posts.
+    """
+    posts = list((await session.execute(select(Post))).scalars())
+    timed = [p for p in posts if p.hour is not None or p.day_of_week is not None]
+    if len(timed) < MIN_POSTS_FOR_TIMING:
+        return TimingSummary(total_posts=len(timed), enough_data=False)
+
+    by_hour: dict[int, list[float]] = {}
+    by_day: dict[int, list[float]] = {}
+    for post in timed:
+        latest = (
+            await session.execute(
+                select(PostMetric)
+                .where(PostMetric.post_id == post.id)
+                .order_by(PostMetric.captured_at.desc())
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+        eng = engagement(latest)
+        if post.hour is not None:
+            by_hour.setdefault(post.hour, []).append(eng)
+        if post.day_of_week is not None:
+            by_day.setdefault(post.day_of_week, []).append(eng)
+
+    hours = _slots(by_hour, lambda h: f"{h:02d}:00")
+    days = _slots(by_day, lambda d: DAY_NAMES[d % 7])
+    best_hour = max(hours, key=lambda s: s.avg_engagement).key if hours else None
+    best_day = max(days, key=lambda s: s.avg_engagement).key if days else None
+
+    return TimingSummary(
+        total_posts=len(timed),
+        enough_data=True,
+        best_hour=best_hour,
+        best_day=best_day,
+        by_hour=hours,
+        by_day=days,
+    )
+
+
 async def compute_performance(session: AsyncSession) -> PerformanceSummary:
     posts = list((await session.execute(select(Post))).scalars())
     if not posts:
