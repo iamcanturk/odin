@@ -23,6 +23,27 @@ toggleBtn.addEventListener("click", async () => {
   await render();
 });
 
+const syncBtn = document.getElementById("sync-now");
+const syncResult = document.getElementById("sync-result");
+
+syncBtn?.addEventListener("click", async () => {
+  syncBtn.disabled = true;
+  syncResult.textContent = "Çekiliyor…";
+  syncResult.style.color = "#8b93a3";
+  try {
+    const res = await chrome.runtime.sendMessage({ type: "odin/sweep" });
+    if (res?.error) throw new Error(res.error);
+    syncResult.textContent = `Tamam (${res.via})`;
+    syncResult.style.color = "#3dd4a0";
+    await render();
+  } catch (err) {
+    syncResult.textContent = String(err.message || err);
+    syncResult.style.color = "#ff6b5e";
+  } finally {
+    syncBtn.disabled = false;
+  }
+});
+
 // "Take style sample": ask the active X profile tab to collect that account's visible
 // tweets and send them as STYLE REFERENCES (not events, not your own posts).
 const sampleBtn = document.getElementById("sample-style");

@@ -28,12 +28,17 @@ async def imported_tweets(
     session: AsyncSession = Depends(get_session),
     limit: int = Query(50, ge=1, le=200),
 ) -> list[ImportedTweet]:
-    """The user's own imported tweets (newest first) with their latest metric snapshot."""
+    """The user's own tweets (newest first) with their latest metric snapshot.
+
+    Anything that actually exists on X counts — both tweets the extension imported and
+    drafts you published from ODIN. Filtering to origin='imported' hid your own published
+    drafts from this list.
+    """
     posts = list(
         (
             await session.execute(
                 select(Post)
-                .where(Post.origin == "imported")
+                .where(Post.external_id.is_not(None))
                 .order_by(Post.posted_at.desc().nulls_last(), Post.created_at.desc())
                 .limit(limit)
             )

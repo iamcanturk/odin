@@ -190,12 +190,25 @@ async function sampleViaBackgroundTab(handle) {
   console.debug("[ODIN] sampled metrics via a background tab");
 }
 
+// A tweet ODIN has never seen can't be "due" — it isn't in the database yet. So on top of
+// the due-based sampling we sweep the profile periodically to DISCOVER new posts.
+const DISCOVERY_INTERVAL_MS = 30 * 60 * 1000;
+
+async function isDiscoveryDue() {
+  const { odinLastSweep = 0 } = await chrome.storage.local.get(["odinLastSweep"]);
+  return Date.now() - odinLastSweep >= DISCOVERY_INTERVAL_MS;
+}
+
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name !== REFRESH_ALARM) return;
   const cfg = await getConfig();
   if (!cfg.odinEnabled) return;
-  if (!(await isSampleDue(cfg))) return; // nothing to do — don't touch X at all
 
+  const due = await isSampleDue(cfg);
+  const discover = await isDiscoveryDue();
+  if (!due && !discover) return; // nothing to do — don't touch X at all
+
+  await chrome.storage.local.set({ odinLastSweep: Date.now() });
   if (await pingOpenTabs()) return;
   await sampleViaBackgroundTab(normalizeHandle(cfg.odinHandle));
 });
@@ -209,6 +222,19 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     (async () => {
       const result = await handleCollect(message.items || []);
       sendResponse(result);
+    })();
+    return true; // async response
+  }
+  if (message?.type === "odin/sweep") {
+    (async () => {
+      const cfg = await getConfig();
+      await chrome.storage.local.set({ odinLastSweep: Date.now() });
+      if (await pingOpenTabs()) {
+        sendResponse({ ok: true, via: "open tab" });
+        return;
+      }
+      await sampleViaBackgroundTab(normalizeHandle(cfg.odinHandle));
+      sendResponse({ ok: true, via: "background tab" });
     })();
     return true; // async response
   }

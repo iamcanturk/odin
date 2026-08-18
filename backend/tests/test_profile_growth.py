@@ -135,3 +135,26 @@ async def test_imported_tweets_include_metric_history(client: httpx.AsyncClient)
     assert point["impressions"] == 100
     # Position on the first-hour curve.
     assert point["minutes_after_post"] is not None
+
+
+async def test_tweets_list_includes_published_drafts(
+    db_sessionmaker, client: httpx.AsyncClient
+) -> None:
+    """A draft you published from ODIN is still one of your tweets."""
+    from app.models import Post
+
+    async with db_sessionmaker() as session:
+        session.add(
+            Post(
+                platform="x", text="published from a draft", status="posted",
+                origin="generated", external_id="7001",
+            )
+        )
+        session.add(  # an unpublished draft must NOT appear
+            Post(platform="x", text="still a draft", status="approved", origin="generated")
+        )
+        await session.commit()
+
+    texts = [t["text"] for t in (await client.get("/api/v1/profile/tweets")).json()]
+    assert "published from a draft" in texts
+    assert "still a draft" not in texts
