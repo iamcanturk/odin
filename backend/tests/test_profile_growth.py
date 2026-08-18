@@ -1,0 +1,82 @@
+"""Tests for X profile snapshots + growth (isolated DB)."""
+
+from __future__ import annotations
+
+import httpx
+import pytest
+from httpx import ASGITransport
+from sqlalchemy import func, select
+
+from app.core.config import get_settings
+from app.core.db import get_session
+from app.main import create_app
+from app.models import ProfileSnapshot
+
+
+@pytest.fixture
+async def client(db_sessionmaker, monkeypatch):
+    monkeypatch.setattr(get_settings(), "ingest_token", "secret", raising=False)
+
+    async def _get_session():
+        async with db_sessionmaker() as session:
+            yield session
+
+    app = create_app()
+    app.dependency_overrides[get_session] = _get_session
+    async with httpx.AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        yield c
+
+
+async def test_profile_snapshot_ingest_and_dedup(
+    db_sessionmaker, client: httpx.AsyncClient
+) -> None:
+    headers = {"X-Ingest-Token": "secret"}
+    r1 = await client.post(
+        "/api/v1/ingest/x/profile",
+        json={"handle": "@me", "followers": 100, "following": 50, "tweets": 200},
+        headers=headers,
+    )
+    assert r1.status_code == 201 and r1.json()["stored"] is True
+
+    # Same values -> deduped (not stored).
+    r2 = await client.post(
+        "/api/v1/ingest/x/profile",
+        json={"handle": "@me", "followers": 100, "following": 50, "tweets": 200},
+        headers=headers,
+    )
+    assert r2.json()["stored"] is False
+
+    # Changed -> stored.
+    r3 = await client.post(
+        "/api/v1/ingest/x/profile",
+        json={"handle": "@me", "followers": 130, "following": 52, "tweets": 205},
+        headers=headers,
+    )
+    assert r3.json()["stored"] is True
+
+    async with db_sessionmaker() as session:
+        assert await session.scalar(select(func.count(ProfileSnapshot.id))) == 2
+
+
+async def test_profile_growth_deltas(client: httpx.AsyncClient) -> None:
+    headers = {"X-Ingest-Token": "secret"}
+    await client.post(
+        "/api/v1/ingest/x/profile",
+        json={"handle": "@me", "followers": 100, "following": 50},
+        headers=headers,
+    )
+    await client.post(
+        "/api/v1/ingest/x/profile",
+        json={"handle": "@me", "followers": 140, "following": 48},
+        headers=headers,
+    )
+    growth = (await client.get("/api/v1/profile/growth")).json()
+    assert growth["snapshots"] == 2
+    assert growth["latest"]["followers"] == 140
+    assert growth["delta_followers"] == 40  # 140 - 100
+    assert growth["delta_following"] == -2
+
+
+async def test_requires_token(client: httpx.AsyncClient) -> None:
+    resp = await client.post("/api/v1/ingest/x/profile", json={"handle": "@me", "followers": 1})
+    assert resp.status_code == 401
