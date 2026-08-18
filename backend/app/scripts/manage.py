@@ -43,6 +43,23 @@ DEFAULT_SOURCES = [
     {"name": "SecurityWeek", "type": SourceType.RSS,
      "url": "https://www.securityweek.com/feed/", "category": "security",
      "priority": Priority.MEDIUM, "confidence": 0.88},
+    # Turkish tech sources
+    {"name": "Webtekno", "type": SourceType.RSS, "url": "https://www.webtekno.com/rss.xml",
+     "category": "technology", "priority": Priority.MEDIUM, "confidence": 0.8},
+    {"name": "ShiftDelete", "type": SourceType.RSS, "url": "https://shiftdelete.net/feed",
+     "category": "technology", "priority": Priority.MEDIUM, "confidence": 0.8},
+    {"name": "Donanım Haber", "type": SourceType.RSS,
+     "url": "https://www.donanimhaber.com/rss/tum/", "category": "technology",
+     "priority": Priority.MEDIUM, "confidence": 0.78},
+    {"name": "Teknoblog", "type": SourceType.RSS, "url": "https://www.teknoblog.com/feed/",
+     "category": "technology", "priority": Priority.MEDIUM, "confidence": 0.78},
+    # Google Trends (trending searches) — TR + global
+    {"name": "Google Trends TR", "type": SourceType.RSS,
+     "url": "https://trends.google.com/trending/rss?geo=TR", "category": "trends",
+     "priority": Priority.HIGH, "confidence": 0.7},
+    {"name": "Google Trends US", "type": SourceType.RSS,
+     "url": "https://trends.google.com/trending/rss?geo=US", "category": "trends",
+     "priority": Priority.MEDIUM, "confidence": 0.65},
 ]
 
 
