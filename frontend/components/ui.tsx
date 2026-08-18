@@ -58,10 +58,57 @@ export function Panel({
 }) {
   return (
     <div
-      className={`rounded-xl border border-border bg-panel/80 backdrop-blur-sm ${className}`}
+      className={`rounded-[var(--radius)] border border-border bg-panel/70 backdrop-blur-sm shadow-[var(--shadow)] ${className}`}
     >
       {children}
     </div>
+  );
+}
+
+export function PageHeader({
+  title,
+  subtitle,
+  actions,
+}: {
+  title: string;
+  subtitle?: string;
+  actions?: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-wrap items-end justify-between gap-4">
+      <div className="min-w-0">
+        <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+        {subtitle && <p className="text-sm text-muted mt-1.5 max-w-2xl">{subtitle}</p>}
+      </div>
+      {actions && <div className="flex items-center gap-2 shrink-0">{actions}</div>}
+    </div>
+  );
+}
+
+export function StatTile({
+  label,
+  value,
+  hint,
+  tone = "text",
+}: {
+  label: string;
+  value: React.ReactNode;
+  hint?: string;
+  tone?: "text" | "accent" | "good" | "warn" | "hot";
+}) {
+  const toneClass = {
+    text: "text-text",
+    accent: "text-accent",
+    good: "text-good",
+    warn: "text-warn",
+    hot: "text-hot",
+  }[tone];
+  return (
+    <Panel className="p-4">
+      <p className="text-[11px] font-mono uppercase tracking-widest text-muted">{label}</p>
+      <p className={`mt-1.5 text-2xl font-semibold tabular-nums ${toneClass}`}>{value}</p>
+      {hint && <p className="text-[11px] text-faint mt-1">{hint}</p>}
+    </Panel>
   );
 }
 

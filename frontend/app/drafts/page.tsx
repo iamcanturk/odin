@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchPosts, markPosted, type Post } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
-import { EmptyState, ErrorState, LoadingState, Panel } from "@/components/ui";
+import { EmptyState, ErrorState, LoadingState, PageHeader, Panel } from "@/components/ui";
 
 function DraftRow({ post }: { post: Post }) {
   const { t } = useI18n();
@@ -63,10 +63,7 @@ export default function DraftsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">{t("df.title")}</h1>
-        <p className="text-sm text-muted mt-1">{t("df.subtitle")}</p>
-      </div>
+      <PageHeader title={t("df.title")} subtitle={t("df.subtitle")} />
 
       {isLoading ? (
         <LoadingState />

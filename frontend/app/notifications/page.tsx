@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchNotifications, markNotificationRead, type Notification } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
-import { EmptyState, ErrorState, LoadingState, Panel } from "@/components/ui";
+import { EmptyState, ErrorState, LoadingState, PageHeader, Panel } from "@/components/ui";
 
 const SEVERITY: Record<string, string> = {
   high: "text-hot border-hot/50",
@@ -53,10 +53,7 @@ export default function NotificationsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">{t("nt.title")}</h1>
-        <p className="text-sm text-muted mt-1">{t("nt.subtitle")}</p>
-      </div>
+      <PageHeader title={t("nt.title")} subtitle={t("nt.subtitle")} />
 
       {isLoading ? (
         <LoadingState />

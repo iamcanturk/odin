@@ -9,7 +9,7 @@ import {
   type StyleProfile,
 } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
-import { EmptyState, ErrorState, LoadingState, Panel } from "@/components/ui";
+import { EmptyState, ErrorState, LoadingState, PageHeader, Panel } from "@/components/ui";
 import { GrowthPanel } from "@/components/GrowthPanel";
 
 const FEATURE_LABELS: Record<string, string> = {
@@ -87,19 +87,19 @@ export default function ProfilePage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-end justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">{t("pf.title")}</h1>
-          <p className="text-sm text-muted mt-1">{t("pf.subtitle")}</p>
-        </div>
-        <button
-          onClick={() => rebuild.mutate()}
-          disabled={rebuild.isPending}
-          className="rounded-md border border-accent/50 px-3 py-1.5 text-sm text-accent hover:bg-accent/10 disabled:opacity-40 transition-colors"
-        >
-          {rebuild.isPending ? t("pf.rebuilding") : t("pf.rebuild")}
-        </button>
-      </div>
+      <PageHeader
+        title={t("pf.title")}
+        subtitle={t("pf.subtitle")}
+        actions={
+          <button
+            onClick={() => rebuild.mutate()}
+            disabled={rebuild.isPending}
+            className="rounded-lg border border-accent/50 px-3 py-1.5 text-sm text-accent hover:bg-accent/10 disabled:opacity-40 transition-colors"
+          >
+            {rebuild.isPending ? t("pf.rebuilding") : t("pf.rebuild")}
+          </button>
+        }
+      />
 
       <GrowthPanel />
 

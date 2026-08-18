@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { fetchSystemStatus } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
-import { ErrorState, LoadingState, Panel } from "@/components/ui";
+import { ErrorState, LoadingState, PageHeader, Panel } from "@/components/ui";
 
 function money(v: number): string {
   return `$${v.toFixed(v < 1 ? 4 : 2)}`;
@@ -32,10 +32,7 @@ export default function SystemPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">{t("sys.title")}</h1>
-        <p className="text-sm text-muted mt-1">{t("sys.subtitle")}</p>
-      </div>
+      <PageHeader title={t("sys.title")} subtitle={t("sys.subtitle")} />
 
       {isLoading && <LoadingState />}
       {error && <ErrorState message={(error as Error).message} onRetry={() => refetch()} />}

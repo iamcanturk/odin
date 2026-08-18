@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { analyzeText, type TesterResponse } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
-import { ErrorState, Panel, ScoreMeter } from "@/components/ui";
+import { ErrorState, PageHeader, Panel, ScoreMeter } from "@/components/ui";
 
 function Bar({ label, value, tone }: { label: string; value: number; tone?: string }) {
   const color =
@@ -30,10 +30,7 @@ export default function TesterPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">{t("ts.title")}</h1>
-        <p className="text-sm text-muted mt-1">{t("ts.subtitle")}</p>
-      </div>
+      <PageHeader title={t("ts.title")} subtitle={t("ts.subtitle")} />
 
       <Panel className="p-4">
         <textarea

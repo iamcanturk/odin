@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { fetchEvaluation } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
-import { EmptyState, ErrorState, LoadingState, Panel } from "@/components/ui";
+import { EmptyState, ErrorState, LoadingState, PageHeader, Panel } from "@/components/ui";
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
@@ -23,10 +23,7 @@ export default function LearningPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">{t("ln.title")}</h1>
-        <p className="text-sm text-muted mt-1">{t("ln.subtitle")}</p>
-      </div>
+      <PageHeader title={t("ln.title")} subtitle={t("ln.subtitle")} />
 
       {isLoading ? (
         <LoadingState />

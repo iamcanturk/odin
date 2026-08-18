@@ -10,7 +10,7 @@ import {
   type Source,
 } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
-import { EmptyState, ErrorState, LoadingState, Panel } from "@/components/ui";
+import { EmptyState, ErrorState, LoadingState, PageHeader, Panel } from "@/components/ui";
 
 function health(s: Source, t: (k: string) => string): { label: string; color: string } {
   if (!s.enabled) return { label: "off", color: "var(--muted)" };
@@ -77,10 +77,7 @@ export default function SourcesPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">{t("src.title")}</h1>
-        <p className="text-sm text-muted mt-1">{t("src.subtitle")}</p>
-      </div>
+      <PageHeader title={t("src.title")} subtitle={t("src.subtitle")} />
 
       <Panel className="p-4">
         <div className="grid gap-3 sm:grid-cols-[1fr_2fr_auto] items-end">

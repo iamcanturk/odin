@@ -25,6 +25,12 @@ const M: Record<string, { tr: string; en: string }> = {
   "nav.learning": { tr: "Öğrenme", en: "Learning" },
   "nav.sources": { tr: "Kaynaklar", en: "Sources" },
   "nav.system": { tr: "Sistem", en: "System" },
+  "nav.grp.discover": { tr: "Keşif", en: "Discover" },
+  "nav.grp.you": { tr: "Sen", en: "You" },
+  "nav.grp.system": { tr: "Sistem", en: "System" },
+  "nav.notifications": { tr: "Bildirimler", en: "Notifications" },
+  "nav.menu": { tr: "Menü", en: "Menu" },
+  "nav.tagline": { tr: "İstihbarat konsolu", en: "Intelligence console" },
 
   // system / observability
   "sys.title": { tr: "Sistem", en: "System" },
@@ -129,6 +135,20 @@ const M: Record<string, { tr: string; en: string }> = {
   "dash.foundN": { tr: "{n} olay izliyorum", en: "I'm tracking {n} events" },
   "dash.relevantM": { tr: "{m} tanesi sana yüksek fırsat", en: "{m} are high-opportunity for you" },
   "dash.allQuiet": { tr: "şu an öne çıkan fırsat yok", en: "nothing stands out right now" },
+  "dash.statTracked": { tr: "İzlenen olay", en: "Tracked" },
+  "dash.statActNow": { tr: "Şimdi değerlendir", en: "Act now" },
+  "dash.statForYou": { tr: "Sana uygun", en: "For you" },
+  "dash.statTopOpp": { tr: "En yüksek fırsat", en: "Top opportunity" },
+  "dash.actNow": { tr: "Şimdi değerlendir", en: "Act now" },
+  "dash.actNowHint": {
+    tr: "Fırsat skoru yüksek — hızlı davranmaya değer",
+    en: "High opportunity score — worth moving on quickly",
+  },
+  "dash.watching": { tr: "İzlemede", en: "Watching" },
+  "dash.watchingHint": {
+    tr: "Momentum kazanıyor, henüz aksiyon zamanı değil",
+    en: "Gaining momentum, not yet time to act",
+  },
 
   // event card / detail
   "ev.source": { tr: "kaynak", en: "source" },

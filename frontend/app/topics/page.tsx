@@ -10,7 +10,7 @@ import {
   type Topic,
 } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
-import { EmptyState, ErrorState, LoadingState, Panel } from "@/components/ui";
+import { EmptyState, ErrorState, LoadingState, PageHeader, Panel } from "@/components/ui";
 
 function splitCsv(v: string): string[] {
   return v.split(",").map((s) => s.trim()).filter(Boolean);
@@ -56,10 +56,7 @@ export default function TopicsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">{t("tp.title")}</h1>
-        <p className="text-sm text-muted mt-1">{t("tp.subtitle")}</p>
-      </div>
+      <PageHeader title={t("tp.title")} subtitle={t("tp.subtitle")} />
 
       <Panel className="p-4">
         <div className="grid gap-3 sm:grid-cols-[1fr_1fr_1fr_auto] items-end">
