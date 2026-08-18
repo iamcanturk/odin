@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchNotifications, markNotificationRead, type Notification } from "@/lib/api";
+import { useI18n } from "@/lib/i18n";
 import { EmptyState, ErrorState, LoadingState, Panel } from "@/components/ui";
 
 const SEVERITY: Record<string, string> = {
@@ -11,6 +12,7 @@ const SEVERITY: Record<string, string> = {
 };
 
 function Row({ n }: { n: Notification }) {
+  const { t } = useI18n();
   const qc = useQueryClient();
   const read = useMutation({
     mutationFn: () => markNotificationRead(n.id),
@@ -32,7 +34,7 @@ function Row({ n }: { n: Notification }) {
             onClick={() => read.mutate()}
             className="ml-auto text-[11px] text-muted hover:text-text transition-colors"
           >
-            mark read
+            {t("nt.markRead")}
           </button>
         )}
       </div>
@@ -43,6 +45,7 @@ function Row({ n }: { n: Notification }) {
 }
 
 export default function NotificationsPage() {
+  const { t } = useI18n();
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["notifications"],
     queryFn: () => fetchNotifications(),
@@ -51,18 +54,16 @@ export default function NotificationsPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold tracking-tight">Notifications</h1>
-        <p className="text-sm text-muted mt-1">
-          High-opportunity events and operational alerts from the ingestion pipeline.
-        </p>
+        <h1 className="text-xl font-semibold tracking-tight">{t("nt.title")}</h1>
+        <p className="text-sm text-muted mt-1">{t("nt.subtitle")}</p>
       </div>
 
       {isLoading ? (
-        <LoadingState label="Loading…" />
+        <LoadingState />
       ) : error ? (
         <ErrorState message={(error as Error).message} onRetry={() => refetch()} />
       ) : !data || data.length === 0 ? (
-        <EmptyState label="No notifications yet." />
+        <EmptyState label={t("nt.empty")} />
       ) : (
         <div className="grid gap-2">
           {data.map((n) => (

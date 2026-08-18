@@ -8,6 +8,7 @@ import {
   type ApproveResponse,
   type Candidate,
 } from "@/lib/api";
+import { useI18n } from "@/lib/i18n";
 import { Panel } from "./ui";
 
 function scoreColor(score: number): string {
@@ -17,6 +18,7 @@ function scoreColor(score: number): string {
 }
 
 function CandidateCard({ c, eventId }: { c: Candidate; eventId: string }) {
+  const { t } = useI18n();
   const approve = useMutation<ApproveResponse, Error, void>({
     mutationFn: () => approveCandidate(eventId, c.id),
   });
@@ -45,7 +47,7 @@ function CandidateCard({ c, eventId }: { c: Candidate; eventId: string }) {
         </div>
         {pred ? (
           <span className="text-[10px] font-mono text-good">
-            ✓ approved · ~{pred.predicted_likes} likes predicted
+            ✓ {t("cp.approvedLikes", { n: pred.predicted_likes ?? 0 })}
           </span>
         ) : (
           <button
@@ -53,7 +55,7 @@ function CandidateCard({ c, eventId }: { c: Candidate; eventId: string }) {
             disabled={approve.isPending}
             className="rounded border border-good/50 px-2 py-1 text-[11px] text-good hover:bg-good/10 disabled:opacity-40 transition-colors"
           >
-            {approve.isPending ? "Approving…" : "Approve →"}
+            {approve.isPending ? t("cp.approving") : t("cp.approve")}
           </button>
         )}
       </div>
@@ -62,6 +64,7 @@ function CandidateCard({ c, eventId }: { c: Candidate; eventId: string }) {
 }
 
 export function ContentPanel({ eventId }: { eventId: string }) {
+  const { t } = useI18n();
   const qc = useQueryClient();
   const { data } = useQuery({
     queryKey: ["candidates", eventId],
@@ -78,17 +81,17 @@ export function ContentPanel({ eventId }: { eventId: string }) {
   return (
     <Panel className="p-5">
       <div className="flex items-center justify-between gap-3 mb-3">
-        <h2 className="text-xs uppercase tracking-widest text-muted">Generate content</h2>
+        <h2 className="text-xs uppercase tracking-widest text-muted">{t("cp.generate")}</h2>
         <button
           onClick={() => generate.mutate()}
           disabled={generate.isPending}
           className="rounded-md border border-accent/50 px-3 py-1.5 text-sm text-accent hover:bg-accent/10 disabled:opacity-40 transition-colors"
         >
           {generate.isPending
-            ? "Generating…"
+            ? t("cp.generating")
             : candidates.length
-              ? "Regenerate"
-              : "Generate angles"}
+              ? t("cp.regenerate")
+              : t("cp.generateAngles")}
         </button>
       </div>
 
@@ -97,9 +100,7 @@ export function ContentPanel({ eventId }: { eventId: string }) {
       )}
 
       {candidates.length === 0 ? (
-        <p className="text-sm text-muted">
-          No candidates yet. Generate distinct strategic angles for this event.
-        </p>
+        <p className="text-sm text-muted">{t("cp.none")}</p>
       ) : (
         <div className="grid gap-3">
           {candidates.map((c) => (

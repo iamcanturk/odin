@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { EventSummary } from "@/lib/api";
+import { useI18n } from "@/lib/i18n";
 import { Panel, ScoreMeter, StatusBadge } from "./ui";
 
 function relativeTime(iso: string): string {
@@ -13,6 +14,7 @@ function relativeTime(iso: string): string {
 }
 
 export function EventCard({ event, rank }: { event: EventSummary; rank: number }) {
+  const { t } = useI18n();
   return (
     <Link href={`/events/${event.id}`} className="block group">
       <Panel className="p-4 transition-colors group-hover:border-accent/50">
@@ -24,8 +26,8 @@ export function EventCard({ event, rank }: { event: EventSummary; rank: number }
             <div className="flex items-center gap-2 flex-wrap">
               <StatusBadge status={event.status} />
               <span className="text-[11px] text-muted">
-                {event.source_count} source{event.source_count === 1 ? "" : "s"} ·{" "}
-                {event.item_count} item{event.item_count === 1 ? "" : "s"} ·{" "}
+                {event.source_count} {event.source_count === 1 ? t("ev.source") : t("ev.sources")}{" "}
+                · {event.item_count} {event.item_count === 1 ? t("ev.item") : t("ev.items")} ·{" "}
                 {relativeTime(event.last_seen_at)}
               </span>
             </div>
@@ -37,8 +39,8 @@ export function EventCard({ event, rank }: { event: EventSummary; rank: number }
             )}
           </div>
           <div className="flex gap-4 shrink-0">
-            <ScoreMeter label="Trend" score={event.trend_score} />
-            <ScoreMeter label="Opp." score={event.opportunity_score} />
+            <ScoreMeter label={t("ev.trend")} score={event.trend_score} />
+            <ScoreMeter label={t("pn.opp")} score={event.opportunity_score} />
           </div>
         </div>
       </Panel>

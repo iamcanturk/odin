@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { analyzeText, type TesterResponse } from "@/lib/api";
+import { useI18n } from "@/lib/i18n";
 import { ErrorState, Panel, ScoreMeter } from "@/components/ui";
 
 function Bar({ label, value, tone }: { label: string; value: number; tone?: string }) {
@@ -22,6 +23,7 @@ function Bar({ label, value, tone }: { label: string; value: number; tone?: stri
 }
 
 export default function TesterPage() {
+  const { t } = useI18n();
   const [text, setText] = useState("");
   const analyze = useMutation<TesterResponse, Error, string>({ mutationFn: analyzeText });
   const r = analyze.data;
@@ -29,11 +31,8 @@ export default function TesterPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold tracking-tight">Tweet tester</h1>
-        <p className="text-sm text-muted mt-1">
-          Paste a draft. ODIN estimates its potential using an X Algorithm Simulation, your style
-          fit, current trend fit and novelty.
-        </p>
+        <h1 className="text-xl font-semibold tracking-tight">{t("ts.title")}</h1>
+        <p className="text-sm text-muted mt-1">{t("ts.subtitle")}</p>
       </div>
 
       <Panel className="p-4">
@@ -42,7 +41,7 @@ export default function TesterPage() {
           onChange={(e) => setText(e.target.value)}
           rows={4}
           maxLength={2000}
-          placeholder="Paste your post…"
+          placeholder={t("ts.placeholder")}
           className="w-full resize-y rounded-md border border-border bg-panel-2 p-3 text-sm outline-none focus:border-accent/60"
         />
         <div className="flex items-center justify-between mt-3">
@@ -52,7 +51,7 @@ export default function TesterPage() {
             disabled={!text.trim() || analyze.isPending}
             className="rounded-md border border-accent/50 px-4 py-1.5 text-sm text-accent hover:bg-accent/10 disabled:opacity-40 transition-colors"
           >
-            {analyze.isPending ? "Analyzing…" : "Analyze"}
+            {analyze.isPending ? t("ts.analyzing") : t("ts.analyze")}
           </button>
         </div>
       </Panel>
@@ -63,32 +62,32 @@ export default function TesterPage() {
         <>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <Panel className="p-4">
-              <ScoreMeter label="Viral potential" score={r.viral_potential} />
+              <ScoreMeter label={t("ts.viral")} score={r.viral_potential} />
             </Panel>
             <Panel className="p-4">
-              <ScoreMeter label="X simulation" score={r.x_simulation} />
+              <ScoreMeter label={t("ts.xsim")} score={r.x_simulation} />
             </Panel>
             <Panel className="p-4">
-              <ScoreMeter label="Personal fit" score={r.personal_fit} />
+              <ScoreMeter label={t("ts.personalFit")} score={r.personal_fit} />
             </Panel>
             <Panel className="p-4">
-              <ScoreMeter label="Trend fit" score={r.trend_fit} />
+              <ScoreMeter label={t("ts.trendFit")} score={r.trend_fit} />
             </Panel>
           </div>
 
           <Panel className="p-5">
-            <h2 className="text-xs uppercase tracking-widest text-muted mb-3">Breakdown</h2>
+            <h2 className="text-xs uppercase tracking-widest text-muted mb-3">{t("ts.breakdown")}</h2>
             <div className="flex flex-col gap-2">
-              <Bar label="Novelty" value={r.novelty} />
-              <Bar label="Reply potential" value={r.reply_potential} />
-              <Bar label="Bookmark potential" value={r.bookmark_potential} />
-              <Bar label="Negative risk" value={r.negative_risk} tone="risk" />
+              <Bar label={t("ts.novelty")} value={r.novelty} />
+              <Bar label={t("ts.reply")} value={r.reply_potential} />
+              <Bar label={t("ts.bookmark")} value={r.bookmark_potential} />
+              <Bar label={t("ts.negative")} value={r.negative_risk} tone="risk" />
             </div>
           </Panel>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <Panel className="p-5">
-              <h2 className="text-xs uppercase tracking-widest text-good mb-2">Why it works</h2>
+              <h2 className="text-xs uppercase tracking-widest text-good mb-2">{t("ts.why")}</h2>
               <ul className="text-sm text-text list-disc pl-5 space-y-1">
                 {r.strengths.map((s, i) => (
                   <li key={i}>{s}</li>
@@ -96,7 +95,7 @@ export default function TesterPage() {
               </ul>
             </Panel>
             <Panel className="p-5">
-              <h2 className="text-xs uppercase tracking-widest text-warn mb-2">What to watch</h2>
+              <h2 className="text-xs uppercase tracking-widest text-warn mb-2">{t("ts.watch")}</h2>
               <ul className="text-sm text-text list-disc pl-5 space-y-1">
                 {r.weaknesses.map((s, i) => (
                   <li key={i}>{s}</li>

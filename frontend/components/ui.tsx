@@ -1,4 +1,7 @@
+"use client";
+
 import type { EventStatus } from "@/lib/api";
+import { useI18n } from "@/lib/i18n";
 
 const STATUS_STYLES: Record<EventStatus, string> = {
   discovered: "text-muted border-border",
@@ -62,31 +65,33 @@ export function Panel({
   );
 }
 
-export function LoadingState({ label = "Scanning signals…" }: { label?: string }) {
+export function LoadingState({ label }: { label?: string }) {
+  const { t } = useI18n();
   return (
     <div className="grid gap-3">
       {Array.from({ length: 5 }).map((_, i) => (
         <div key={i} className="h-20 rounded-xl border border-border bg-panel/50 animate-pulse" />
       ))}
-      <p className="text-center text-xs text-muted font-mono">{label}</p>
+      <p className="text-center text-xs text-muted font-mono">{label ?? t("state.scanning")}</p>
     </div>
   );
 }
 
 export function ErrorState({ message, onRetry }: { message: string; onRetry?: () => void }) {
+  const { t } = useI18n();
   return (
     <Panel className="p-8 text-center">
-      <p className="text-hot font-mono text-sm">Signal lost</p>
+      <p className="text-hot font-mono text-sm">{t("state.signalLost")}</p>
       <p className="text-muted text-sm mt-1">{message}</p>
       <p className="text-muted/70 text-xs mt-3">
-        Is the API running at <code className="font-mono">{"/api/v1"}</code>?
+        {t("state.apiHint")} <code className="font-mono">{"/api/v1"}</code>?
       </p>
       {onRetry && (
         <button
           onClick={onRetry}
           className="mt-4 rounded-md border border-border px-3 py-1.5 text-sm hover:border-accent/60 transition-colors"
         >
-          Retry
+          {t("state.retry")}
         </button>
       )}
     </Panel>

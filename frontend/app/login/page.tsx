@@ -2,9 +2,11 @@
 
 import { useState } from "react";
 import { login, setToken } from "@/lib/api";
+import { useI18n } from "@/lib/i18n";
 import { Panel } from "@/components/ui";
 
 export default function LoginPage() {
+  const { t } = useI18n();
   const [username, setUsername] = useState("admin");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -21,7 +23,7 @@ export default function LoginPage() {
       // eslint-disable-next-line @next/next/no-location-assign-relative-destination
       window.location.href = "/";
     } catch {
-      setError("Invalid credentials");
+      setError(t("login.invalid"));
       setBusy(false);
     }
   }
@@ -35,11 +37,13 @@ export default function LoginPage() {
           </div>
           <span className="font-mono text-sm tracking-[0.3em]">ODIN</span>
         </div>
-        <h1 className="text-lg font-semibold mb-1">Sign in</h1>
-        <p className="text-sm text-muted mb-5">Access is restricted.</p>
+        <h1 className="text-lg font-semibold mb-1">{t("login.title")}</h1>
+        <p className="text-sm text-muted mb-5">{t("login.subtitle")}</p>
         <form onSubmit={submit} className="flex flex-col gap-3">
           <label className="flex flex-col gap-1">
-            <span className="text-[10px] uppercase tracking-widest text-muted">Username</span>
+            <span className="text-[10px] uppercase tracking-widest text-muted">
+              {t("login.username")}
+            </span>
             <input
               value={username}
               onChange={(e) => setUsername(e.target.value)}
@@ -48,7 +52,9 @@ export default function LoginPage() {
             />
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-[10px] uppercase tracking-widest text-muted">Password</span>
+            <span className="text-[10px] uppercase tracking-widest text-muted">
+              {t("login.password")}
+            </span>
             <input
               type="password"
               value={password}
@@ -63,7 +69,7 @@ export default function LoginPage() {
             disabled={!password || busy}
             className="mt-2 h-9 rounded-md border border-accent/50 text-sm text-accent hover:bg-accent/10 disabled:opacity-40 transition-colors"
           >
-            {busy ? "Signing in…" : "Sign in"}
+            {busy ? t("login.submitting") : t("login.submit")}
           </button>
         </form>
       </Panel>
