@@ -30,7 +30,7 @@ ANGLES: dict[str, tuple[str, float, float]] = {
 }
 
 _SYSTEM = (
-    "You write high-performing X (Twitter) posts for a technical audience, in the author's "
+    "You write high-performing X (Twitter) posts {audience}, in the author's "
     "own voice. Rules: (1) The post MUST stand on its own — name the subject explicitly and "
     "summarise what happened and why it matters, so a reader with zero prior context fully "
     "understands it. Never write cryptic detail-dumps. (2) Optimise for the X 'For You' ranker: "
@@ -40,24 +40,46 @@ _SYSTEM = (
     "emoji unless the author's voice uses them. Return ONLY the post text, no surrounding quotes."
 )
 
+AUDIENCES = {
+    "technical": "for a technical audience (developers, engineers)",
+    "general": "for a general, non-technical audience — explain jargon in plain words",
+}
+
+# length -> instruction appended to the system prompt.
+LENGTHS = {
+    "short": "Keep it under 280 characters.",
+    "long": (
+        "Write a longer, in-depth single post (roughly 400-700 characters) that still reads "
+        "as one cohesive thought."
+    ),
+    "story": (
+        "Write it as a short narrative: set the scene, build tension, land a payoff. "
+        "Roughly 600-1000 characters, in flowing prose, first person where it fits. "
+        "Tell it like a story, not a bulletin."
+    ),
+    "thread": (
+        "Write a thread of 4-6 numbered posts. Put each post on its own line prefixed with "
+        "its number (1/ 2/ 3/ ...). The first post must hook and state the subject; the last "
+        "must land a takeaway. Keep each post under 280 characters."
+    ),
+}
+
 _LANG_NAME = {"en": "English", "tr": "Turkish"}
 
 # em/en dashes and other AI-tell punctuation the user doesn't want.
 _DASH_RE = re.compile(r"\s*[—–]\s*")
 
 
-def _system_for(language: str, *, length: str, voice: str) -> str:
+def _system_for(
+    language: str, *, length: str, voice: str, audience: str = "technical", style: str = ""
+) -> str:
     name = _LANG_NAME.get(language, "English")
-    if length == "long":
-        limit = (
-            "Write a longer, in-depth single post (roughly 400-700 characters) that still reads "
-            "as one cohesive thought."
-        )
-    else:
-        limit = "Keep it under 280 characters."
-    parts = [_SYSTEM, f"Write the post in {name}.", limit]
+    base = _SYSTEM.format(audience=AUDIENCES.get(audience, AUDIENCES["technical"]))
+    parts = [base, f"Write the post in {name}.", LENGTHS.get(length, LENGTHS["short"])]
     if voice:
         parts.append(voice)
+    if style:
+        parts.append(style)
     return " ".join(parts)
 
 
@@ -79,6 +101,10 @@ def _voice_hint(profile: StyleProfile | None) -> str:
     if bits:
         bits.append("Match this voice without copying past posts verbatim.")
     return " ".join(bits)
+
+
+def _max_tokens(length: str) -> int:
+    return {"short": 160, "long": 400, "story": 700, "thread": 700}.get(length, 160)
 
 
 def _sanitize(text: str) -> str:
@@ -136,13 +162,15 @@ async def generate_candidates(
     angles: list[str] | None = None,
     length: str = "short",
     voice: str = "",
+    audience: str = "technical",
+    style: str = "",
 ) -> list[CandidateDraft]:
-    system = _system_for(language, length=length, voice=voice)
+    system = _system_for(language, length=length, voice=voice, audience=audience, style=style)
     # When the user picks a specific kind, generate only that angle; else all.
     selected = {a: ANGLES[a] for a in angles if a in ANGLES} if angles else ANGLES
     if not selected:
         selected = ANGLES
-    max_tokens = 400 if length == "long" else 160
+    max_tokens = _max_tokens(length)
     tf = min(1.0, max(0.0, event.trend_score / 100.0))
     pf = min(1.0, max(0.0, event.personal_relevance / 100.0))
     drafts: list[CandidateDraft] = []
@@ -174,6 +202,64 @@ async def generate_candidates(
     drafts.sort(key=lambda d: d.viral_score, reverse=True)
     for i, draft in enumerate(drafts, start=1):
         draft.rank = i
+    return drafts
+
+
+async def compose_freeform(
+    session: AsyncSession,
+    topic: str,
+    llm: LLMProvider,
+    *,
+    language: str = "en",
+    length: str = "short",
+    audience: str = "technical",
+    angles: list[str] | None = None,
+    n: int = 3,
+) -> list[CandidateDraft]:
+    """Generate posts about ANY topic the user types — no event needed (PROJECT.md §21)."""
+    profile = (
+        await session.execute(select(StyleProfile).where(StyleProfile.key == "default"))
+    ).scalar_one_or_none()
+    system = _system_for(
+        language, length=length, voice=_voice_hint(profile), audience=audience
+    )
+    selected = (
+        {a: ANGLES[a] for a in angles if a in ANGLES}
+        if angles
+        else dict(list(ANGLES.items())[:n])
+    )
+    if not selected:
+        selected = dict(list(ANGLES.items())[:n])
+
+    drafts: list[CandidateDraft] = []
+    for angle, (instruction, novelty, risk) in selected.items():
+        raw = await llm.generate(
+            f"Topic: {topic}\n\nTask: {instruction}\n"
+            f"Make it self-contained so anyone understands the topic. Write the post:",
+            system=system,
+            temperature=0.85,
+            max_tokens=_max_tokens(length),
+        )
+        text = _sanitize(raw)
+        xsim = simulate(text).sim_score
+        drafts.append(
+            CandidateDraft(
+                text=text,
+                angle=angle,
+                platform="x",
+                trend_score=0.0,
+                personal_score=0.0,
+                source_confidence=0.0,
+                novelty_score=novelty,
+                risk_score=risk,
+                viral_score=_viral_score(xsim, 0.0, 0.0, novelty, risk),
+            )
+        )
+    drafts.sort(key=lambda d: d.viral_score, reverse=True)
+    for i, d in enumerate(drafts, start=1):
+        d.rank = i
+    await persist_usage(session, purpose="compose")
+    await session.commit()
     return drafts
 
 

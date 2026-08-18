@@ -25,6 +25,33 @@ const M: Record<string, { tr: string; en: string }> = {
   "nav.learning": { tr: "Öğrenme", en: "Learning" },
   "nav.sources": { tr: "Kaynaklar", en: "Sources" },
   "nav.system": { tr: "Sistem", en: "System" },
+  "nav.compose": { tr: "Tweet üret", en: "Compose" },
+
+  // composer
+  "co.title": { tr: "Tweet üret", en: "Compose a post" },
+  "co.subtitle": {
+    tr: "İstediğin konuyu yaz, istediğin formatta tweet üretsin.",
+    en: "Type any topic and generate posts in the format you want.",
+  },
+  "co.topic": { tr: "Konu", en: "Topic" },
+  "co.topicPlaceholder": {
+    tr: "Ne hakkında yazmak istiyorsun?",
+    en: "What do you want to post about?",
+  },
+  "co.audience": { tr: "Kitle", en: "Audience" },
+  "co.aud.technical": { tr: "Teknik", en: "Technical" },
+  "co.aud.general": { tr: "Genel (teknik değil)", en: "General (non-technical)" },
+  "co.format": { tr: "Format", en: "Format" },
+  "co.fmt.short": { tr: "Kısa (≤280)", en: "Short (≤280)" },
+  "co.fmt.long": { tr: "Uzun", en: "Long" },
+  "co.fmt.story": { tr: "Hikaye", en: "Story" },
+  "co.fmt.thread": { tr: "Thread (4-6)", en: "Thread (4-6)" },
+  "co.generate": { tr: "Üret", en: "Generate" },
+  "co.generating": { tr: "Üretiliyor…", en: "Generating…" },
+  "co.empty": {
+    tr: "Bir konu yaz ve Üret'e bas.",
+    en: "Type a topic and hit Generate.",
+  },
   "nav.grp.discover": { tr: "Keşif", en: "Discover" },
   "nav.grp.you": { tr: "Sen", en: "You" },
   "nav.grp.system": { tr: "Sistem", en: "System" },

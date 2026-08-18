@@ -30,6 +30,7 @@ const GROUPS: NavGroup[] = [
   {
     items: [
       { href: "/", key: "nav.console", icon: IconRadar },
+      { href: "/compose", key: "nav.compose", icon: IconDraft },
       { href: "/post-now", key: "nav.postNow", icon: IconBolt },
     ],
   },

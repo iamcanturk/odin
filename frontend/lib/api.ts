@@ -425,6 +425,28 @@ export interface ImportedTweet {
 
 export const fetchImportedTweets = () => getJSON<ImportedTweet[]>("/profile/tweets");
 
+// ---- Composer: generate posts about any topic ----
+
+export type ComposeLength = "short" | "long" | "story" | "thread";
+export type ComposeAudience = "technical" | "general";
+
+export interface ComposeDraft {
+  text: string;
+  angle: string;
+  viral_score: number;
+  novelty_score: number;
+  risk_score: number;
+  rank: number;
+}
+
+export const compose = (body: {
+  topic: string;
+  language?: string;
+  length?: ComposeLength;
+  audience?: ComposeAudience;
+  kind?: TweetKind;
+}) => send<ComposeDraft[]>("/compose", "POST", body);
+
 // ---- System / observability (PROJECT.md §44) ----
 
 export interface CostBucket {
