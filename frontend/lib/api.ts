@@ -184,11 +184,24 @@ export interface Candidate {
   rank: number;
 }
 
-export const generateCandidates = (eventId: string, language?: string) =>
-  send<Candidate[]>(
-    `/events/${eventId}/generate${language ? `?language=${language}` : ""}`,
-    "POST",
-  );
+export type TweetKind =
+  | ""
+  | "breaking"
+  | "contrarian"
+  | "technical"
+  | "educational"
+  | "question";
+
+export const generateCandidates = (
+  eventId: string,
+  opts?: { language?: string; kind?: TweetKind },
+) => {
+  const qs = new URLSearchParams();
+  if (opts?.language) qs.set("language", opts.language);
+  if (opts?.kind) qs.set("kind", opts.kind);
+  const q = qs.toString();
+  return send<Candidate[]>(`/events/${eventId}/generate${q ? `?${q}` : ""}`, "POST");
+};
 export const fetchCandidates = (eventId: string) =>
   getJSON<Candidate[]>(`/events/${eventId}/candidates`);
 
@@ -358,6 +371,26 @@ export async function fetchProfile(): Promise<StyleProfile | null> {
 }
 
 export const rebuildProfile = () => send<StyleProfile>("/profile/rebuild", "POST");
+
+// ---- Profile growth (PROJECT.md §12: follower/following over time) ----
+
+export interface ProfilePoint {
+  captured_at: string;
+  followers: number | null;
+  following: number | null;
+  tweets: number | null;
+}
+
+export interface ProfileGrowth {
+  handle: string | null;
+  snapshots: number;
+  latest: ProfilePoint | null;
+  delta_followers: number | null;
+  delta_following: number | null;
+  series: ProfilePoint[];
+}
+
+export const fetchProfileGrowth = () => getJSON<ProfileGrowth>("/profile/growth");
 
 // ---- System / observability (PROJECT.md §44) ----
 

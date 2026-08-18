@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   approveCandidate,
@@ -7,9 +8,12 @@ import {
   generateCandidates,
   type ApproveResponse,
   type Candidate,
+  type TweetKind,
 } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { Panel } from "./ui";
+
+const KINDS: TweetKind[] = ["", "breaking", "contrarian", "technical", "educational", "question"];
 
 function scoreColor(score: number): string {
   if (score >= 66) return "var(--hot)";
@@ -66,33 +70,66 @@ function CandidateCard({ c, eventId }: { c: Candidate; eventId: string }) {
 export function ContentPanel({ eventId }: { eventId: string }) {
   const { t, locale } = useI18n();
   const qc = useQueryClient();
+  const [lang, setLang] = useState<"tr" | "en">(locale === "en" ? "en" : "tr");
+  const [kind, setKind] = useState<TweetKind>("");
+
   const { data } = useQuery({
     queryKey: ["candidates", eventId],
     queryFn: () => fetchCandidates(eventId),
   });
 
   const generate = useMutation({
-    mutationFn: () => generateCandidates(eventId, locale),
+    mutationFn: () => generateCandidates(eventId, { language: lang, kind }),
     onSuccess: (candidates) => qc.setQueryData(["candidates", eventId], candidates),
   });
 
   const candidates = data ?? [];
+  const selectCls =
+    "rounded-md border border-border bg-panel-2 px-2 py-1.5 text-sm text-text " +
+    "focus:outline-none focus:border-accent/60 transition-colors";
 
   return (
     <Panel className="p-5">
-      <div className="flex items-center justify-between gap-3 mb-3">
+      <div className="flex flex-wrap items-end justify-between gap-3 mb-3">
         <h2 className="text-xs uppercase tracking-widest text-muted">{t("cp.generate")}</h2>
-        <button
-          onClick={() => generate.mutate()}
-          disabled={generate.isPending}
-          className="rounded-md border border-accent/50 px-3 py-1.5 text-sm text-accent hover:bg-accent/10 disabled:opacity-40 transition-colors"
-        >
-          {generate.isPending
-            ? t("cp.generating")
-            : candidates.length
-              ? t("cp.regenerate")
-              : t("cp.generateAngles")}
-        </button>
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="flex flex-col gap-1">
+            <span className="text-[10px] uppercase tracking-widest text-muted">{t("cp.lang")}</span>
+            <select
+              value={lang}
+              onChange={(e) => setLang(e.target.value as "tr" | "en")}
+              className={selectCls}
+            >
+              <option value="tr">TR</option>
+              <option value="en">EN</option>
+            </select>
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-[10px] uppercase tracking-widest text-muted">{t("cp.kind")}</span>
+            <select
+              value={kind}
+              onChange={(e) => setKind(e.target.value as TweetKind)}
+              className={selectCls}
+            >
+              {KINDS.map((k) => (
+                <option key={k || "all"} value={k}>
+                  {t(k ? `cp.kind.${k}` : "cp.kind.all")}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            onClick={() => generate.mutate()}
+            disabled={generate.isPending}
+            className="rounded-md border border-accent/50 px-3 py-1.5 text-sm text-accent hover:bg-accent/10 disabled:opacity-40 transition-colors"
+          >
+            {generate.isPending
+              ? t("cp.generating")
+              : candidates.length
+                ? t("cp.regenerate")
+                : t("cp.generateAngles")}
+          </button>
+        </div>
       </div>
 
       {generate.error && (
