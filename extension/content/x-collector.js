@@ -35,15 +35,36 @@ function text(el) {
   return el ? el.innerText.trim() : null;
 }
 
-function parseCount(label) {
-  // aria-labels look like "12 Likes". Extract the leading number.
+// Magnitude suffixes differ by X's UI language, and so do the separators:
+//   English "1,234" = 1234, "1.2K" = 1200
+//   Turkish "1.234" = 1234, "1,2 B" = 1200   (B = bin, Mn = milyon)
+// Getting this wrong is silent and severe: the old parser read Turkish "1,2 B" as 12
+// and "1.234" as 1 (parseFloat("1.234")).
+const MULTIPLIERS_EN = { K: 1e3, M: 1e6, B: 1e9, G: 1e9 };
+const MULTIPLIERS_TR = { B: 1e3, BIN: 1e3, K: 1e3, MN: 1e6, M: 1e6, MR: 1e9 };
+
+function isTurkishUI() {
+  return (document.documentElement.lang || "").toLowerCase().startsWith("tr");
+}
+
+function parseCount(label, { turkish = isTurkishUI() } = {}) {
   if (!label) return null;
-  const m = label.replace(/,/g, "").match(/(\d+(?:\.\d+)?)([KM]?)/);
+  const s = String(label).replace(/\u00a0/g, " ").trim();
+  const m = s.match(/(\d[\d.,]*)\s*(Bin|Mn|Mr|B|K|M|G)?/i);
   if (!m) return null;
-  let n = parseFloat(m[1]);
-  if (m[2] === "K") n *= 1_000;
-  if (m[2] === "M") n *= 1_000_000;
-  return Math.round(n);
+
+  let digits = m[1];
+  if (turkish) {
+    digits = digits.replace(/\./g, "").replace(",", "."); // 1.234 -> 1234 ; 1,2 -> 1.2
+  } else {
+    digits = digits.replace(/,/g, ""); // 1,234 -> 1234 ; 1.2 stays 1.2
+  }
+  const n = parseFloat(digits);
+  if (!Number.isFinite(n)) return null;
+
+  const suffix = (m[2] || "").toUpperCase();
+  const mult = (turkish ? MULTIPLIERS_TR : MULTIPLIERS_EN)[suffix] || 1;
+  return Math.round(n * mult);
 }
 
 function metricFor(article, testid) {
@@ -51,11 +72,24 @@ function metricFor(article, testid) {
   return el ? parseCount(el.getAttribute("aria-label")) : null;
 }
 
+// "Views" has no stable data-testid, so try the analytics link first and fall back to
+// any aria-label that mentions views in either language.
+const VIEWS_LABEL_RE = /(views?|görüntülenme|gösterim|izlenme)/i;
+
 function viewsFor(article) {
-  // View count sits behind the analytics link in the action bar (best-effort).
-  const a = article.querySelector('a[href$="/analytics"]');
-  if (!a) return null;
-  return parseCount(a.getAttribute("aria-label")) ?? parseCount(a.textContent);
+  const a = article.querySelector('a[href*="/analytics"]');
+  if (a) {
+    const v = parseCount(a.getAttribute("aria-label")) ?? parseCount(a.textContent);
+    if (v != null) return v;
+  }
+  for (const el of article.querySelectorAll("[aria-label]")) {
+    const label = el.getAttribute("aria-label") || "";
+    if (VIEWS_LABEL_RE.test(label)) {
+      const v = parseCount(label);
+      if (v != null) return v;
+    }
+  }
+  return null;
 }
 
 function extractTweet(article) {
