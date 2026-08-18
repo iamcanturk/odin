@@ -254,6 +254,19 @@ class EvaluationSummary(BaseModel):
 # ---- Notifications ----
 
 
+class PerformanceCategory(BaseModel):
+    category: str
+    score: float
+    posts: int
+    avg_engagement: float
+
+
+class PerformanceSummary(BaseModel):
+    total_posts: int
+    by_type: list[PerformanceCategory]
+    by_topic: list[PerformanceCategory]
+
+
 class NotificationRead(ORMModel):
     id: uuid.UUID
     type: str

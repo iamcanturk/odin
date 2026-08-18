@@ -14,6 +14,7 @@ from app.api.v1 import (
     events,
     ingest,
     notifications,
+    performance,
     posts,
     profile,
     sources,
@@ -38,3 +39,4 @@ api_router.include_router(tester.router, dependencies=[_protected])
 api_router.include_router(posts.router, dependencies=[_protected])
 api_router.include_router(evaluation.router, dependencies=[_protected])
 api_router.include_router(notifications.router, dependencies=[_protected])
+api_router.include_router(performance.router, dependencies=[_protected])
