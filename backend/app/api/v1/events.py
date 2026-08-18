@@ -11,14 +11,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.db import get_session
 from app.models import ContentCandidate, ContentItem, Event, Source
 from app.pipeline.content import create_candidates
+from app.pipeline.publish import approve_candidate
 from app.providers.factory import get_llm_provider
 from app.schemas.api import (
+    ApproveResponse,
     CandidateRead,
     EventDetail,
     EventItem,
     EventList,
     EventSourceRef,
     EventSummary,
+    PostRead,
+    PredictionRead,
 )
 
 router = APIRouter(prefix="/events", tags=["events"])
@@ -140,3 +144,22 @@ async def list_event_candidates(
         .order_by(ContentCandidate.rank)
     )
     return list(rows.scalars())
+
+
+@router.post("/{event_id}/candidates/{candidate_id}/approve", response_model=ApproveResponse)
+async def approve_event_candidate(
+    event_id: uuid.UUID,
+    candidate_id: uuid.UUID,
+    session: AsyncSession = Depends(get_session),
+) -> ApproveResponse:
+    candidate = await session.get(ContentCandidate, candidate_id)
+    if candidate is None or candidate.event_id != event_id:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+    post, prediction = await approve_candidate(session, candidate)
+    await session.commit()
+    await session.refresh(post)
+    await session.refresh(prediction)
+    return ApproveResponse(
+        post=PostRead.model_validate(post),
+        prediction=PredictionRead.model_validate(prediction),
+    )
