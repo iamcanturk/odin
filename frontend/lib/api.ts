@@ -209,12 +209,18 @@ export type TweetLength = "short" | "long" | "story" | "thread";
 
 export const generateCandidates = (
   eventId: string,
-  opts?: { language?: string; kind?: TweetKind; length?: TweetLength },
+  opts?: {
+    language?: string;
+    kind?: TweetKind;
+    length?: TweetLength;
+    styleHandle?: string;
+  },
 ) => {
   const qs = new URLSearchParams();
   if (opts?.language) qs.set("language", opts.language);
   if (opts?.kind) qs.set("kind", opts.kind);
   if (opts?.length) qs.set("length", opts.length);
+  if (opts?.styleHandle) qs.set("style_handle", opts.styleHandle);
   const q = qs.toString();
   return send<Candidate[]>(`/events/${eventId}/generate${q ? `?${q}` : ""}`, "POST");
 };

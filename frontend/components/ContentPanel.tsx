@@ -6,6 +6,7 @@ import {
   approveCandidate,
   deleteCandidate,
   fetchCandidates,
+  fetchStyleRefs,
   generateCandidates,
   updateCandidate,
   type ApproveResponse,
@@ -212,6 +213,9 @@ export function ContentPanel({
   const [lang, setLang] = useState<"tr" | "en">(locale === "en" ? "en" : "tr");
   const [kind, setKind] = useState<TweetKind>("");
   const [length, setLength] = useState<TweetLength>("short");
+  const [styleHandle, setStyleHandle] = useState("");
+
+  const { data: styles } = useQuery({ queryKey: ["compose", "styles"], queryFn: fetchStyleRefs });
 
   const { data } = useQuery({
     queryKey: ["candidates", eventId],
@@ -219,7 +223,8 @@ export function ContentPanel({
   });
 
   const generate = useMutation({
-    mutationFn: () => generateCandidates(eventId, { language: lang, kind, length }),
+    mutationFn: () =>
+      generateCandidates(eventId, { language: lang, kind, length, styleHandle }),
     onSuccess: (candidates) => qc.setQueryData(["candidates", eventId], candidates),
   });
 
@@ -273,6 +278,26 @@ export function ContentPanel({
               <option value="thread">{t("co.fmt.thread")}</option>
             </select>
           </label>
+          {!!styles?.length && (
+            <label className="flex flex-col gap-1">
+              <span className="text-[10px] uppercase tracking-widest text-muted">
+                {t("co.style")}
+              </span>
+              <select
+                value={styleHandle}
+                onChange={(e) => setStyleHandle(e.target.value)}
+                className={selectCls}
+              >
+                <option value="">{t("co.style.mine")}</option>
+                {styles.map((s) => (
+                  <option key={s.handle} value={s.handle}>
+                    @{s.handle} ({s.samples})
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+
           <button
             onClick={() => generate.mutate()}
             disabled={generate.isPending}
