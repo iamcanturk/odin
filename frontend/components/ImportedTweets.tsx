@@ -21,9 +21,11 @@ function Metric({ value, label }: { value: number | null; label: string }) {
 }
 
 /** The first-hour view curve — where most of a tweet's reach is decided. */
-function FirstHour({ history }: { history: MetricPoint[] }) {
+function FirstHour({ history }: { history?: MetricPoint[] }) {
   const { t } = useI18n();
-  const pts = history.filter(
+  // Defensive: an older API build omits this field entirely, and a bare .filter() on
+  // undefined takes the whole page down.
+  const pts = (history ?? []).filter(
     (h) => h.minutes_after_post != null && h.minutes_after_post <= 60 && h.impressions != null,
   );
   if (pts.length < 2) return null;

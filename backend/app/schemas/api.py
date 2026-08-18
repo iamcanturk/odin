@@ -253,6 +253,7 @@ class ImportedTweet(BaseModel):
     replies: int | None = None
     bookmarks: int | None = None
     impressions: int | None = None
+    history: list[MetricPoint] = Field(default_factory=list)
 
 
 class ApproveResponse(BaseModel):
