@@ -1,7 +1,13 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { fetchCandidates, generateCandidates, type Candidate } from "@/lib/api";
+import {
+  approveCandidate,
+  fetchCandidates,
+  generateCandidates,
+  type ApproveResponse,
+  type Candidate,
+} from "@/lib/api";
 import { Panel } from "./ui";
 
 function scoreColor(score: number): string {
@@ -10,7 +16,12 @@ function scoreColor(score: number): string {
   return "var(--accent)";
 }
 
-function CandidateCard({ c }: { c: Candidate }) {
+function CandidateCard({ c, eventId }: { c: Candidate; eventId: string }) {
+  const approve = useMutation<ApproveResponse, Error, void>({
+    mutationFn: () => approveCandidate(eventId, c.id),
+  });
+  const pred = approve.data?.prediction;
+
   return (
     <Panel className="p-4">
       <div className="flex items-center justify-between gap-2">
@@ -25,11 +36,26 @@ function CandidateCard({ c }: { c: Candidate }) {
         </span>
       </div>
       <p className="text-sm text-text mt-2 whitespace-pre-wrap">{c.text}</p>
-      <div className="flex gap-4 mt-3 text-[10px] text-muted font-mono">
-        <span>trend {c.trend_score.toFixed(0)}</span>
-        <span>you {c.personal_score.toFixed(0)}</span>
-        <span>novelty {(c.novelty_score * 100).toFixed(0)}</span>
-        <span>risk {(c.risk_score * 100).toFixed(0)}</span>
+      <div className="flex items-center justify-between gap-4 mt-3">
+        <div className="flex gap-4 text-[10px] text-muted font-mono">
+          <span>trend {c.trend_score.toFixed(0)}</span>
+          <span>you {c.personal_score.toFixed(0)}</span>
+          <span>novelty {(c.novelty_score * 100).toFixed(0)}</span>
+          <span>risk {(c.risk_score * 100).toFixed(0)}</span>
+        </div>
+        {pred ? (
+          <span className="text-[10px] font-mono text-good">
+            ✓ approved · ~{pred.predicted_likes} likes predicted
+          </span>
+        ) : (
+          <button
+            onClick={() => approve.mutate()}
+            disabled={approve.isPending}
+            className="rounded border border-good/50 px-2 py-1 text-[11px] text-good hover:bg-good/10 disabled:opacity-40 transition-colors"
+          >
+            {approve.isPending ? "Approving…" : "Approve →"}
+          </button>
+        )}
       </div>
     </Panel>
   );
@@ -77,7 +103,7 @@ export function ContentPanel({ eventId }: { eventId: string }) {
       ) : (
         <div className="grid gap-3">
           {candidates.map((c) => (
-            <CandidateCard key={c.id} c={c} />
+            <CandidateCard key={c.id} c={c} eventId={eventId} />
           ))}
         </div>
       )}

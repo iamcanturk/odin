@@ -141,6 +141,86 @@ export const generateCandidates = (eventId: string) =>
 export const fetchCandidates = (eventId: string) =>
   getJSON<Candidate[]>(`/events/${eventId}/candidates`);
 
+// ---- Publish workflow ----
+
+export interface Prediction {
+  id: string;
+  predicted_at: string;
+  model_version: string;
+  viral_score: number;
+  x_simulation: number;
+  opportunity_score: number;
+  predicted_impressions: number | null;
+  predicted_likes: number | null;
+  predicted_replies: number | null;
+  predicted_reposts: number | null;
+}
+
+export interface Post {
+  id: string;
+  platform: string;
+  external_id: string | null;
+  text: string;
+  status: string;
+  origin: string;
+  angle: string | null;
+  event_id: string | null;
+  created_at: string;
+}
+
+export interface ApproveResponse {
+  post: Post;
+  prediction: Prediction;
+}
+
+export const approveCandidate = (eventId: string, candidateId: string) =>
+  send<ApproveResponse>(`/events/${eventId}/candidates/${candidateId}/approve`, "POST");
+export const fetchPosts = (status?: string) =>
+  getJSON<Post[]>(`/posts${status ? `?status=${status}` : ""}`);
+export const markPosted = (postId: string, externalId: string) =>
+  send<Post>(`/posts/${postId}/posted`, "POST", { external_id: externalId });
+
+// ---- Evaluation ----
+
+export interface EvaluationItem {
+  post_id: string;
+  text: string;
+  predicted_likes: number;
+  actual_likes: number;
+  abs_error: number;
+  error_pct: number;
+  viral_score: number;
+}
+
+export interface EvaluationSummary {
+  evaluated: number;
+  mae: number;
+  rmse: number;
+  precision_at_3: number | null;
+  items: EvaluationItem[];
+}
+
+export const fetchEvaluation = () => getJSON<EvaluationSummary>("/evaluation");
+
+// ---- Notifications ----
+
+export interface Notification {
+  id: string;
+  type: string;
+  severity: string;
+  title: string;
+  body: string | null;
+  event_id: string | null;
+  read: boolean;
+  created_at: string;
+}
+
+export const fetchNotifications = (unread = false) =>
+  getJSON<Notification[]>(`/notifications${unread ? "?unread=true" : ""}`);
+export const fetchUnreadCount = () => getJSON<number>("/notifications/unread-count");
+export const markNotificationRead = (id: string) =>
+  send<Notification>(`/notifications/${id}/read`, "POST");
+
 // ---- Tweet tester ----
 
 export interface TesterResponse {
