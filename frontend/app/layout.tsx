@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { HeaderNav } from "@/components/HeaderNav";
 import { Providers } from "./providers";
 
 const geistSans = Geist({
@@ -34,23 +34,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
                 <div className="size-1.5 rounded-full bg-accent" />
               </div>
               <span className="font-mono text-sm tracking-[0.3em] text-text">ODIN</span>
-              <nav className="ml-auto flex items-center gap-5 text-sm">
-                <Link href="/" className="text-muted hover:text-text transition-colors">
-                  Console
-                </Link>
-                <Link href="/post-now" className="text-muted hover:text-text transition-colors">
-                  Post now
-                </Link>
-                <Link href="/topics" className="text-muted hover:text-text transition-colors">
-                  Topics
-                </Link>
-                <Link href="/tester" className="text-muted hover:text-text transition-colors">
-                  Tester
-                </Link>
-                <Link href="/profile" className="text-muted hover:text-text transition-colors">
-                  Profile
-                </Link>
-              </nav>
+              <HeaderNav />
             </div>
           </header>
           <main className="flex-1 mx-auto w-full max-w-6xl px-6 py-8">{children}</main>
