@@ -182,8 +182,11 @@ export interface Candidate {
   rank: number;
 }
 
-export const generateCandidates = (eventId: string) =>
-  send<Candidate[]>(`/events/${eventId}/generate`, "POST");
+export const generateCandidates = (eventId: string, language?: string) =>
+  send<Candidate[]>(
+    `/events/${eventId}/generate${language ? `?language=${language}` : ""}`,
+    "POST",
+  );
 export const fetchCandidates = (eventId: string) =>
   getJSON<Candidate[]>(`/events/${eventId}/candidates`);
 
