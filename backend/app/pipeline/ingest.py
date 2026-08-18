@@ -25,7 +25,7 @@ from app.pipeline.clustering import (
     score,
 )
 from app.pipeline.enrich import apply_enrichment
-from app.pipeline.notify import emit_for_events, emit_for_sources
+from app.pipeline.notify import emit_for_events, emit_for_sources, emit_trend_spikes
 from app.pipeline.opportunity import apply_opportunity
 from app.pipeline.text import keywords
 from app.pipeline.topics import apply_topic_matching
@@ -308,6 +308,7 @@ async def process_pending(
     stats.items_created = len(pending)
     affected = await process_new_items(session, pending, embedder, stats, llm=llm, now=now)
     await emit_for_events(session, list(affected))
+    await emit_trend_spikes(session, list(affected))
     await session.commit()
     log.info("process_pending.done", items=len(pending), events_created=stats.events_created)
     return stats
@@ -336,6 +337,7 @@ async def run_ingestion(
 
     affected = await process_new_items(session, all_new, embedder, stats, llm=llm, now=now)
     await emit_for_events(session, list(affected))
+    await emit_trend_spikes(session, list(affected))
     await emit_for_sources(session, sources)
     await session.commit()
 

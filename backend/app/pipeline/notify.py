@@ -13,9 +13,11 @@ from app.models import Event, Notification, Source
 
 OPPORTUNITY_THRESHOLD = 80.0
 SOURCE_FAILURE_THRESHOLD = 3
+TREND_SPIKE_THRESHOLD = 0.6  # acceleration component (0..1)
 
 HIGH_OPPORTUNITY = "high_opportunity"
 SOURCE_FAILURE = "source_failure"
+TREND_SPIKE = "trend_spike"
 
 
 async def _exists(session: AsyncSession, *, type_: str, event_id=None, title=None) -> bool:
@@ -44,6 +46,33 @@ async def emit_for_events(
                 body=(
                     f"Opportunity {event.opportunity_score:.0f}, "
                     f"trend {event.trend_score:.0f}, relevance {event.personal_relevance:.0f}."
+                ),
+                event_id=event.id,
+            )
+        )
+        count += 1
+    return count
+
+
+async def emit_trend_spikes(
+    session: AsyncSession, events: list[Event], *, threshold: float = TREND_SPIKE_THRESHOLD
+) -> int:
+    """One notification per event when its trend acceleration spikes (PROJECT.md §32)."""
+    count = 0
+    for event in events:
+        accel = float((event.velocity or {}).get("acceleration", 0.0))
+        if accel < threshold:
+            continue
+        if await _exists(session, type_=TREND_SPIKE, event_id=event.id):
+            continue
+        session.add(
+            Notification(
+                type=TREND_SPIKE,
+                severity="high",
+                title=f"Trend spike: {event.title[:120]}",
+                body=(
+                    f"Fast-rising (acceleration {accel * 100:.0f}%), "
+                    f"trend {event.trend_score:.0f}."
                 ),
                 event_id=event.id,
             )
