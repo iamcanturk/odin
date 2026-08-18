@@ -116,8 +116,15 @@ export function fetchEvents(params?: {
 export const dismissEvent = (id: string) =>
   send<{ id: string; status: string }>(`/events/${id}/dismiss`, "POST");
 
-export function fetchEvent(id: string): Promise<EventDetail> {
-  return getJSON<EventDetail>(`/events/${id}`);
+export async function fetchEvent(id: string): Promise<EventDetail | null> {
+  const res = await fetch(`${API_BASE}/events/${id}`, {
+    headers: { Accept: "application/json", ...authHeaders() },
+    cache: "no-store",
+  });
+  if (res.status === 404) return null; // deleted/dismissed event — not an API outage
+  if (res.status === 401) handleUnauthorized(`/events/${id}`);
+  if (!res.ok) throw new Error(`API ${res.status}: ${res.statusText}`);
+  return res.json() as Promise<EventDetail>;
 }
 
 // ---- Topics ----
@@ -396,6 +403,23 @@ export interface ProfileGrowth {
 }
 
 export const fetchProfileGrowth = () => getJSON<ProfileGrowth>("/profile/growth");
+
+// ---- Imported tweets (the user's own posts + metrics) ----
+
+export interface ImportedTweet {
+  id: string;
+  external_id: string | null;
+  text: string;
+  url: string | null;
+  posted_at: string | null;
+  likes: number | null;
+  reposts: number | null;
+  replies: number | null;
+  bookmarks: number | null;
+  impressions: number | null;
+}
+
+export const fetchImportedTweets = () => getJSON<ImportedTweet[]>("/profile/tweets");
 
 // ---- System / observability (PROJECT.md §44) ----
 

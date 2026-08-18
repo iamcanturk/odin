@@ -41,7 +41,17 @@ export function EventDetailView({ id }: { id: string }) {
         <LoadingState />
       ) : error ? (
         <ErrorState message={(error as Error).message} onRetry={() => refetch()} />
-      ) : !data ? null : (
+      ) : !data ? (
+        <Panel className="p-8 text-center">
+          <p className="text-sm text-text">{t("ev.gone")}</p>
+          <Link
+            href="/"
+            className="inline-block mt-3 text-sm text-accent hover:underline"
+          >
+            {t("ev.back")}
+          </Link>
+        </Panel>
+      ) : (
         <>
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-2">

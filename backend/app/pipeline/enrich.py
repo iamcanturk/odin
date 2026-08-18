@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
-from app.models import ContentItem, Event
+from app.models import ContentItem, Event, EventTopic
 from app.models.enums import EventStatus
 from app.providers.base import LLMProvider
 
@@ -34,11 +34,20 @@ def _system_for(language: str) -> str:
     return f"{_SYSTEM} Write the summary in {name}. Keep entity names as-is."
 
 
-def should_enrich(event: Event, threshold: float) -> bool:
-    """Gate: only enrich high-signal events that aren't already summarized."""
+def should_enrich(event: Event, threshold: float, *, has_topic: bool = False) -> bool:
+    """Gate: enrich share-worthy events that aren't already summarized.
+
+    Share-worthy = matches one of the user's topics (personally relevant), OR has enough
+    trend momentum, OR is in a hot lifecycle stage. Topic-matched events always get a
+    summary because those are the ones the user might post about.
+    """
     if event.summary:
         return False
-    return event.trend_score >= threshold or EventStatus(event.status) in HOT_STATUSES
+    return (
+        has_topic
+        or event.trend_score >= threshold
+        or EventStatus(event.status) in HOT_STATUSES
+    )
 
 
 def build_prompt(title: str, item_texts: list[str]) -> str:
@@ -88,8 +97,18 @@ async def apply_enrichment(
 ) -> int:
     """Enrich the gated subset of events. Returns the number enriched."""
     enriched = 0
+    # Topic-matched events are always share-worthy — fetch them in one query.
+    topic_ids: set = set()
+    ids = [e.id for e in events if not e.summary]
+    if ids:
+        rows = await session.execute(
+            select(EventTopic.event_id)
+            .where(EventTopic.event_id.in_(ids), EventTopic.relevance > 0)
+            .distinct()
+        )
+        topic_ids = {r[0] for r in rows}
     for event in events:
-        if not should_enrich(event, threshold):
+        if not should_enrich(event, threshold, has_topic=event.id in topic_ids):
             continue
         rows = await session.execute(
             select(ContentItem.title, ContentItem.text)

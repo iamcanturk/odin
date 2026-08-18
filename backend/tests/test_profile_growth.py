@@ -80,3 +80,30 @@ async def test_profile_growth_deltas(client: httpx.AsyncClient) -> None:
 async def test_requires_token(client: httpx.AsyncClient) -> None:
     resp = await client.post("/api/v1/ingest/x/profile", json={"handle": "@me", "followers": 1})
     assert resp.status_code == 401
+
+
+async def test_imported_tweets_lists_own_posts_with_metrics(
+    client: httpx.AsyncClient,
+) -> None:
+    headers = {"X-Ingest-Token": "secret"}
+    await client.post(
+        "/api/v1/ingest/x",
+        json={
+            "items": [
+                {
+                    "id": "5001",
+                    "text": "my own tweet",
+                    "author_handle": "@me",
+                    "metrics": {"likes": 42, "reposts": 7, "impressions": 3000},
+                    "is_self": True,
+                },
+                {"id": "5002", "text": "someone else", "author_handle": "@other"},
+            ]
+        },
+        headers=headers,
+    )
+    tweets = (await client.get("/api/v1/profile/tweets")).json()
+    assert len(tweets) == 1  # only the imported own post
+    assert tweets[0]["text"] == "my own tweet"
+    assert tweets[0]["likes"] == 42
+    assert tweets[0]["impressions"] == 3000

@@ -34,8 +34,8 @@ class Settings(BaseSettings):
     llm_api_key: str = ""
     llm_base_url: str = "https://openrouter.ai/api/v1"
     llm_model: str = "deepseek/deepseek-chat"
-    # Only events at/above this trend score get LLM enrichment (cost control).
-    enrich_trend_threshold: float = 50.0
+    # Events at/above this trend score get an LLM summary (topic-matched events always do).
+    enrich_trend_threshold: float = 30.0
     # Default language for generated content when not specified per-request (en | tr).
     content_language: str = "en"
     # LLM pricing (USD per 1M tokens) for cost estimation. Defaults ~ deepseek-chat.

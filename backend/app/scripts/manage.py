@@ -12,10 +12,13 @@ from datetime import UTC, datetime
 
 from sqlalchemy import delete, func, select
 
+from app.core.config import get_settings
 from app.core.db import async_session_factory
 from app.models import ContentCandidate, ContentItem, Event, Notification, Source
 from app.models.associations import EventSource, EventTopic
 from app.models.enums import EventStatus, Priority, SourceType
+from app.pipeline.cost import persist_usage
+from app.pipeline.enrich import apply_enrichment
 from app.pipeline.ingest import run_ingestion
 from app.pipeline.opportunity import apply_opportunity
 from app.pipeline.style import build_style_profile
@@ -114,6 +117,29 @@ async def style() -> None:
         print(f"style profile rebuilt from {profile.post_count} posts: {profile.summary}")
 
 
+async def enrich() -> None:
+    """Backfill LLM summaries (in CONTENT_LANGUAGE) for current share-worthy events."""
+    settings = get_settings()
+    async with async_session_factory() as session:
+        events = list(
+            (
+                await session.execute(
+                    select(Event).where(Event.status != EventStatus.ARCHIVED)
+                )
+            ).scalars()
+        )
+        n = await apply_enrichment(
+            session,
+            events,
+            get_llm_provider(),
+            threshold=settings.enrich_trend_threshold,
+            language=settings.content_language,
+        )
+        await persist_usage(session, purpose="enrich")
+        await session.commit()
+        print(f"enriched {n} of {len(events)} events in {settings.content_language}")
+
+
 async def purge_events() -> None:
     """One-time cleanup: wipe all events + ingested items so the console starts fresh.
 
@@ -140,6 +166,7 @@ async def _dispatch(command: str) -> None:
         "ingest": ingest,
         "rematch": rematch,
         "style": style,
+        "enrich": enrich,
         "purge-events": purge_events,
     }[command]()
 
@@ -147,7 +174,7 @@ async def _dispatch(command: str) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="ODIN management commands")
     parser.add_argument(
-        "command", choices=["seed", "ingest", "rematch", "style", "purge-events"]
+        "command", choices=["seed", "ingest", "rematch", "style", "enrich", "purge-events"]
     )
     args = parser.parse_args()
     asyncio.run(_dispatch(args.command))
