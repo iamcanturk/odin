@@ -24,6 +24,29 @@ const M: Record<string, { tr: string; en: string }> = {
   "nav.drafts": { tr: "Taslaklar", en: "Drafts" },
   "nav.learning": { tr: "Öğrenme", en: "Learning" },
   "nav.sources": { tr: "Kaynaklar", en: "Sources" },
+  "nav.system": { tr: "Sistem", en: "System" },
+
+  // system / observability
+  "sys.title": { tr: "Sistem", en: "System" },
+  "sys.subtitle": {
+    tr: "AI maliyeti ve işlem günlükleri",
+    en: "AI cost and pipeline logs",
+  },
+  "sys.costTotal": { tr: "Toplam maliyet", en: "Total cost" },
+  "sys.cost30d": { tr: "Son 30 gün", en: "Last 30 days" },
+  "sys.calls": { tr: "LLM çağrısı", en: "LLM calls" },
+  "sys.tokens": { tr: "Toplam token", en: "Total tokens" },
+  "sys.byPurpose": { tr: "Amaca göre maliyet", en: "Cost by purpose" },
+  "sys.purpose": { tr: "Amaç", en: "Purpose" },
+  "sys.tokensCol": { tr: "Token", en: "Tokens" },
+  "sys.costCol": { tr: "Maliyet", en: "Cost" },
+  "sys.runs": { tr: "Son işlemler", en: "Recent runs" },
+  "sys.runKind": { tr: "Tür", en: "Kind" },
+  "sys.runItems": { tr: "Öğe", en: "Items" },
+  "sys.runEvents": { tr: "Olay", en: "Events" },
+  "sys.runErrors": { tr: "Hata", en: "Errors" },
+  "sys.runTime": { tr: "Zaman", en: "Time" },
+  "sys.noRuns": { tr: "Henüz işlem yok", en: "No runs yet" },
 
   // sources
   "src.title": { tr: "Kaynaklar", en: "Sources" },

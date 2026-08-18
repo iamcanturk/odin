@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     enrich_trend_threshold: float = 50.0
     # Default language for generated content when not specified per-request (en | tr).
     content_language: str = "en"
+    # LLM pricing (USD per 1M tokens) for cost estimation. Defaults ~ deepseek-chat.
+    llm_price_in_per_m: float = 0.14
+    llm_price_out_per_m: float = 0.28
     # Shared token the browser extension must send to POST /api/v1/ingest/x. Empty = disabled.
     ingest_token: str = ""
 

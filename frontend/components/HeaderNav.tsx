@@ -21,6 +21,7 @@ const LINKS: { href: string; key: string }[] = [
   { href: "/profile", key: "nav.profile" },
   { href: "/drafts", key: "nav.drafts" },
   { href: "/learning", key: "nav.learning" },
+  { href: "/system", key: "nav.system" },
 ];
 
 export function HeaderNav() {

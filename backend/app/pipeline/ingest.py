@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
-from app.models import ContentItem, Event, Source
+from app.models import ContentItem, Event, RunLog, Source
 from app.models.enums import EventStatus
 from app.pipeline.clustering import (
     DEFAULT_THRESHOLD,
@@ -24,6 +24,7 @@ from app.pipeline.clustering import (
     ClusterItem,
     score,
 )
+from app.pipeline.cost import persist_usage
 from app.pipeline.enrich import apply_enrichment
 from app.pipeline.notify import emit_for_events, emit_for_sources, emit_trend_spikes
 from app.pipeline.opportunity import apply_opportunity
@@ -66,6 +67,18 @@ def build_adapter(source: Source) -> SourceAdapter | None:
 
 def _item_text(item: ContentItem) -> str:
     return " ".join(p for p in (item.title, item.text) if p).strip()
+
+
+def _log_run(session: AsyncSession, kind: str, stats: IngestStats) -> None:
+    session.add(
+        RunLog(
+            kind=kind,
+            sources_polled=stats.sources_polled,
+            items_created=stats.items_created,
+            events_created=stats.events_created,
+            errors=stats.errors[:50],
+        )
+    )
 
 
 async def _existing_hashes(session: AsyncSession, hashes: list[str]) -> set[str]:
@@ -283,6 +296,7 @@ async def process_new_items(
             threshold=settings.enrich_trend_threshold,
             language=settings.content_language,
         )
+        await persist_usage(session, purpose="enrich")
     return affected
 
 
@@ -314,6 +328,7 @@ async def process_pending(
     affected = await process_new_items(session, pending, embedder, stats, llm=llm, now=now)
     await emit_for_events(session, list(affected))
     await emit_trend_spikes(session, list(affected))
+    _log_run(session, "inbound", stats)
     await session.commit()
     log.info("process_pending.done", items=len(pending), events_created=stats.events_created)
     return stats
@@ -344,6 +359,7 @@ async def run_ingestion(
     await emit_for_events(session, list(affected))
     await emit_trend_spikes(session, list(affected))
     await emit_for_sources(session, sources)
+    _log_run(session, "poll", stats)
     await session.commit()
 
     log.info(
