@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { dismissEvent, fetchEvents, fetchTopics, type EventList } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
@@ -40,11 +41,19 @@ function SectionHeader({ title, hint, count }: { title: string; hint: string; co
 export default function DashboardPage() {
   const { t } = useI18n();
   const qc = useQueryClient();
-  const queryKey = ["events", { orderBy: "opportunity_score", minTrend: MIN_TREND }];
+  const [search, setSearch] = useState("");
+  const q = search.trim();
+  // Searching looks across ALL events (no trend floor) so nothing is hidden from you.
+  const queryKey = ["events", { orderBy: "opportunity_score", minTrend: MIN_TREND, q }];
   const { data, isLoading, error, refetch } = useQuery({
     queryKey,
     queryFn: () =>
-      fetchEvents({ limit: 60, orderBy: "opportunity_score", minTrend: MIN_TREND }),
+      fetchEvents({
+        limit: q ? 100 : 60,
+        orderBy: "opportunity_score",
+        minTrend: q ? 0 : MIN_TREND,
+        q,
+      }),
   });
   const { data: topics } = useQuery({ queryKey: ["topics"], queryFn: fetchTopics });
 
@@ -94,7 +103,19 @@ export default function DashboardPage() {
         }
       />
 
-      {data && (
+      <div className="relative">
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder={t("dash.search")}
+          className="h-10 w-full rounded-lg border border-border bg-panel-2 px-3 pr-28 text-sm outline-none focus:border-accent/60 transition-colors"
+        />
+        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-faint pointer-events-none">
+          {t("dash.searchHint")}
+        </span>
+      </div>
+
+      {!q && data && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <StatTile label={t("dash.statTracked")} value={events.length} />
           <StatTile
@@ -128,6 +149,28 @@ export default function DashboardPage() {
         <LoadingState />
       ) : error ? (
         <ErrorState message={(error as Error).message} onRetry={() => refetch()} />
+      ) : q ? (
+        events.length === 0 ? (
+          <EmptyState label={t("dash.searchNone", { q })} />
+        ) : (
+          <section>
+            <SectionHeader
+              title={t("dash.searchResults")}
+              hint={t("dash.searchHint")}
+              count={events.length}
+            />
+            <div className="grid gap-3">
+              {events.map((event, i) => (
+                <EventCard
+                  key={event.id}
+                  event={event}
+                  rank={i + 1}
+                  onDismiss={(id) => dismiss.mutate(id)}
+                />
+              ))}
+            </div>
+          </section>
+        )
       ) : events.length === 0 ? (
         <EmptyState label={t("dash.empty")} />
       ) : (

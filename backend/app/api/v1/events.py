@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -87,6 +87,25 @@ async def _matched_topics(
     return out
 
 
+async def _headlines(
+    session: AsyncSession, event_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, list[str]]:
+    """The individual article titles merged into each event."""
+    if not event_ids:
+        return {}
+    rows = await session.execute(
+        select(ContentItem.event_id, ContentItem.title)
+        .where(ContentItem.event_id.in_(event_ids), ContentItem.title.is_not(None))
+        .order_by(ContentItem.published_at.desc().nullslast())
+    )
+    out: dict[uuid.UUID, list[str]] = {}
+    for event_id, title in rows:
+        titles = out.setdefault(event_id, [])
+        if title not in titles and len(titles) < 5:
+            titles.append(title)
+    return out
+
+
 @router.get("", response_model=EventList)
 async def list_events(
     session: AsyncSession = Depends(get_session),
@@ -94,6 +113,7 @@ async def list_events(
     offset: int = Query(0, ge=0),
     status: str | None = Query(None),
     min_trend: float = Query(0.0, ge=0.0, le=100.0),
+    q: str = Query("", max_length=200),
     order_by: str = Query("trend_score", pattern="^(trend_score|opportunity_score|last_seen_at)$"),
 ) -> EventList:
     filters = []
@@ -104,6 +124,22 @@ async def list_events(
         filters.append(Event.status != EventStatus.ARCHIVED)
     if min_trend > 0:
         filters.append(Event.trend_score >= min_trend)
+    if q.strip():
+        # Search the event itself AND the headlines merged into it, so an article that
+        # clustered under a different title is still findable.
+        like = f"%{q.strip()}%"
+        filters.append(
+            or_(
+                Event.title.ilike(like),
+                Event.summary.ilike(like),
+                Event.id.in_(
+                    select(ContentItem.event_id).where(
+                        ContentItem.event_id.is_not(None),
+                        or_(ContentItem.title.ilike(like), ContentItem.text.ilike(like)),
+                    )
+                ),
+            )
+        )
 
     total = await session.scalar(select(func.count(Event.id)).where(*filters)) or 0
 
@@ -121,6 +157,7 @@ async def list_events(
     counts = await _counts(session, ids)
     stypes = await _source_types(session, ids)
     etopics = await _matched_topics(session, ids)
+    eheadlines = await _headlines(session, ids)
 
     items = []
     for e in events:
@@ -130,6 +167,7 @@ async def list_events(
         summary.source_count = source_count
         summary.source_types = stypes.get(e.id, [])
         summary.topics = etopics.get(e.id, [])
+        summary.headlines = eheadlines.get(e.id, [])
         items.append(summary)
 
     return EventList(total=total, items=items)

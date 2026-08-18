@@ -85,6 +85,19 @@ export function EventCard({
             {event.summary && (
               <p className="text-sm text-muted mt-1 line-clamp-2">{event.summary}</p>
             )}
+            {/* Other articles merged into this event — otherwise they're invisible. */}
+            {event.headlines.filter((h) => h !== event.title).length > 0 && (
+              <ul className="mt-1.5 flex flex-col gap-0.5">
+                {event.headlines
+                  .filter((h) => h !== event.title)
+                  .slice(0, 3)
+                  .map((h) => (
+                    <li key={h} className="text-[11px] text-faint truncate">
+                      ↳ {h}
+                    </li>
+                  ))}
+              </ul>
+            )}
             <div className="flex flex-wrap gap-x-6 gap-y-2 mt-3">
               <ScoreMeter label={t("ev.trend")} score={event.trend_score} />
               <ScoreMeter label={t("pn.opp")} score={event.opportunity_score} />
