@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { fetchEvents, recommendedAction } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
-import { EmptyState, ErrorState, LoadingState, Panel, ScoreMeter } from "@/components/ui";
+import { EmptyState, ErrorState, LoadingState, PageHeader, Panel, ScoreMeter } from "@/components/ui";
 
 const TONE: Record<string, string> = {
   hot: "text-hot border-hot/50",
@@ -29,10 +29,7 @@ export default function PostNowPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">{t("pn.title")}</h1>
-        <p className="text-sm text-muted mt-1">{t("pn.subtitle")}</p>
-      </div>
+      <PageHeader title={t("pn.title")} subtitle={t("pn.subtitle")} />
 
       {isLoading ? (
         <LoadingState />
