@@ -19,7 +19,7 @@ from app.models.associations import EventSource, EventTopic
 from app.models.enums import EventStatus, Priority, SourceType
 from app.pipeline.cost import persist_usage
 from app.pipeline.enrich import apply_enrichment
-from app.pipeline.ingest import run_ingestion
+from app.pipeline.ingest import build_adapter, run_ingestion
 from app.pipeline.opportunity import apply_opportunity
 from app.pipeline.style import build_style_profile
 from app.pipeline.topics import apply_topic_matching
@@ -167,6 +167,53 @@ async def enrich() -> None:
         print(f"enriched {n} of {len(events)} events in {settings.content_language}")
 
 
+async def backfill_media() -> None:
+    """Re-fetch every feed and attach images to items we already stored.
+
+    Image extraction was added after most items were ingested, and conditional GET means
+    those feeds return 304 forever — so the only way to fill them in is a forced re-fetch
+    matched back onto existing rows by content_hash.
+    """
+    async with async_session_factory() as session:
+        sources = list(
+            (
+                await session.execute(
+                    select(Source).where(Source.enabled.is_(True), Source.type == SourceType.RSS)
+                )
+            ).scalars()
+        )
+        updated = 0
+        for source in sources:
+            adapter = build_adapter(source)
+            if adapter is None:
+                continue
+            try:
+                result = await adapter.fetch()  # no etag/last-modified: force a full body
+            except Exception as exc:  # noqa: BLE001 - one bad feed shouldn't stop the rest
+                print(f"  {source.name}: {exc}")
+                continue
+            if result.status != "ok":
+                print(f"  {source.name}: {result.error}")
+                continue
+
+            by_hash = {i.content_hash: i for i in result.items if i.media}
+            if not by_hash:
+                continue
+            rows = list(
+                (
+                    await session.execute(
+                        select(ContentItem).where(ContentItem.content_hash.in_(by_hash))
+                    )
+                ).scalars()
+            )
+            for item in rows:
+                if not item.media:
+                    item.media = by_hash[item.content_hash].media
+                    updated += 1
+        await session.commit()
+        print(f"backfilled images on {updated} item(s) across {len(sources)} feed(s)")
+
+
 async def purge_events() -> None:
     """One-time cleanup: wipe all events + ingested items so the console starts fresh.
 
@@ -194,6 +241,7 @@ async def _dispatch(command: str) -> None:
         "rematch": rematch,
         "style": style,
         "enrich": enrich,
+        "backfill-media": backfill_media,
         "purge-events": purge_events,
     }[command]()
 
@@ -201,7 +249,11 @@ async def _dispatch(command: str) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="ODIN management commands")
     parser.add_argument(
-        "command", choices=["seed", "ingest", "rematch", "style", "enrich", "purge-events"]
+        "command",
+        choices=[
+            "seed", "ingest", "rematch", "style", "enrich",
+            "backfill-media", "purge-events",
+        ],
     )
     args = parser.parse_args()
     asyncio.run(_dispatch(args.command))
