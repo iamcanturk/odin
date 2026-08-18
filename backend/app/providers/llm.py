@@ -59,4 +59,9 @@ class OpenAICompatibleLLMProvider(LLMProvider):
             temperature=temperature,
             max_tokens=max_tokens,
         )
+        usage = getattr(resp, "usage", None)
+        if usage is not None:
+            from app.pipeline.cost import record
+
+            record(self.model, usage.prompt_tokens or 0, usage.completion_tokens or 0)
         return (resp.choices[0].message.content or "").strip()

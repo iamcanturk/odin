@@ -12,6 +12,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import ContentCandidate, ContentItem, Event
+from app.pipeline.cost import persist_usage
 from app.providers.base import LLMProvider
 
 CONTENT_VERSION = "content-v1"
@@ -148,6 +149,7 @@ async def create_candidates(
         for d in drafts
     ]
     session.add_all(candidates)
+    await persist_usage(session, purpose="generate")
     await session.commit()
     for c in candidates:
         await session.refresh(c)

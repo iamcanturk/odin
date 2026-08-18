@@ -359,6 +359,36 @@ export async function fetchProfile(): Promise<StyleProfile | null> {
 
 export const rebuildProfile = () => send<StyleProfile>("/profile/rebuild", "POST");
 
+// ---- System / observability (PROJECT.md §44) ----
+
+export interface CostBucket {
+  purpose: string;
+  calls: number;
+  prompt_tokens: number;
+  completion_tokens: number;
+  cost_usd: number;
+}
+
+export interface RunLog {
+  kind: string;
+  sources_polled: number;
+  items_created: number;
+  events_created: number;
+  errors: string[];
+  created_at: string;
+}
+
+export interface SystemStatus {
+  cost_total_usd: number;
+  cost_30d_usd: number;
+  calls_total: number;
+  tokens_total: number;
+  by_purpose: CostBucket[];
+  recent_runs: RunLog[];
+}
+
+export const fetchSystemStatus = () => getJSON<SystemStatus>("/system");
+
 // ---- Recommended action (PROJECT.md §31) ----
 
 export function recommendedAction(opportunity: number): { label: string; tone: string } {
