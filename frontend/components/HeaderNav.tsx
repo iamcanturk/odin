@@ -2,7 +2,13 @@
 
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { fetchUnreadCount } from "@/lib/api";
+import { clearToken, fetchUnreadCount } from "@/lib/api";
+
+function logout() {
+  clearToken();
+  // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+  window.location.href = "/login";
+}
 
 const LINKS = [
   { href: "/", label: "Console" },
@@ -40,6 +46,14 @@ export function HeaderNav() {
           </span>
         )}
       </Link>
+      <button
+        onClick={logout}
+        className="text-muted hover:text-hot transition-colors"
+        title="Sign out"
+        aria-label="Sign out"
+      >
+        ⏻
+      </button>
     </nav>
   );
 }

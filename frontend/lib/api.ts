@@ -3,6 +3,36 @@
 export const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api/v1";
 
+// ---- Auth token (localStorage) ----
+
+const TOKEN_KEY = "odin_token";
+
+export function getToken(): string | null {
+  return typeof window !== "undefined" ? localStorage.getItem(TOKEN_KEY) : null;
+}
+export function setToken(token: string): void {
+  if (typeof window !== "undefined") localStorage.setItem(TOKEN_KEY, token);
+}
+export function clearToken(): void {
+  if (typeof window !== "undefined") localStorage.removeItem(TOKEN_KEY);
+}
+
+function authHeaders(): Record<string, string> {
+  const t = getToken();
+  return t ? { Authorization: `Bearer ${t}` } : {};
+}
+
+function handleUnauthorized(path: string): void {
+  // Don't bounce on auth calls themselves (e.g. a failed login).
+  if (path.startsWith("/auth")) return;
+  clearToken();
+  if (typeof window !== "undefined" && window.location.pathname !== "/login") {
+    // Full reload on 401 to fully reset client state.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+    window.location.href = "/login";
+  }
+}
+
 export type EventStatus =
   | "discovered"
   | "verified"
@@ -57,9 +87,10 @@ export interface EventDetail extends EventSummary {
 
 async function getJSON<T>(path: string): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: { Accept: "application/json" },
+    headers: { Accept: "application/json", ...authHeaders() },
     cache: "no-store",
   });
+  if (res.status === 401) handleUnauthorized(path);
   if (!res.ok) {
     throw new Error(`API ${res.status}: ${res.statusText}`);
   }
@@ -108,12 +139,27 @@ export function fetchTopics(): Promise<Topic[]> {
 async function send<T>(path: string, method: string, body?: unknown): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     method,
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      ...authHeaders(),
+    },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
+  if (res.status === 401) handleUnauthorized(path);
   if (!res.ok) throw new Error(`API ${res.status}: ${res.statusText}`);
   return (res.status === 204 ? undefined : await res.json()) as T;
 }
+
+// ---- Auth ----
+
+export interface AuthConfig {
+  auth_required: boolean;
+}
+
+export const fetchAuthConfig = () => getJSON<AuthConfig>("/auth/config");
+export const login = (username: string, password: string) =>
+  send<{ token: string }>("/auth/login", "POST", { username, password });
 
 export const createTopic = (t: TopicInput) => send<Topic>("/topics", "POST", t);
 export const updateTopic = (id: string, t: Partial<TopicInput>) =>
