@@ -1,15 +1,21 @@
 # ODIN X Collector (Chrome extension)
 
-Manifest V3 extension that collects X (Twitter) posts you view and sends them to your ODIN
-instance's inbound endpoint (`POST /api/v1/ingest/x`). This avoids the paid X API — you are the
-collector, browsing normally.
+Manifest V3 extension that sends **your own** X (Twitter) activity to your ODIN instance's inbound
+endpoint (`POST /api/v1/ingest/x`). This avoids the paid X API — you are the collector, browsing
+normally.
+
+> **X is an output channel, not an input.** ODIN does **not** turn other people's tweets into
+> events — event/opportunity content comes from RSS, Hacker News, GitHub, Reddit and Google Trends.
+> The extension only captures **your own posts** (for style + performance analysis) and **your
+> profile stats** (for follower growth). Everyone else's tweets are ignored.
 
 ## How it works
 
-- A **content script** on `x.com` / `twitter.com` reads visible posts from the DOM (best-effort;
-  X's markup changes often) and hands batches to the service worker.
-- The **service worker** de-dupes by post id and POSTs new posts to your ODIN API with the
-  `X-Ingest-Token` header. Items then flow through ODIN's normal clustering/scoring pipeline.
+- A **content script** on `x.com` / `twitter.com` reads your visible posts from the DOM
+  (best-effort; X's markup changes often), keeps only the ones authored by your handle, and hands
+  them to the service worker with their engagement (likes / reposts / replies / bookmarks / views).
+- The **service worker** POSTs your own posts to your ODIN API with the `X-Ingest-Token` header;
+  the backend imports them as posts and appends a metric snapshot.
 - **Profile stats**: when you visit *your own* profile (the handle you set in Settings), the
   extension reads your follower / following / post counts and POSTs a snapshot to
   `POST /api/v1/ingest/x/profile`. ODIN charts this growth over time on the Profile page.
