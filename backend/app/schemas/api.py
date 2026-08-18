@@ -69,6 +69,7 @@ class EventDetail(EventSummary):
     entities: list[Any] = Field(default_factory=list)
     velocity: dict[str, Any] = Field(default_factory=dict)
     scoring_version: str | None = None
+    suggested_image: str | None = None  # a source image to attach to a post
     sources: list[EventSourceRef] = Field(default_factory=list)
     items: list[EventItem] = Field(default_factory=list)
 

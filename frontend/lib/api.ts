@@ -83,6 +83,7 @@ export interface EventDetail extends EventSummary {
   entities: string[];
   velocity: Record<string, number>;
   scoring_version: string | null;
+  suggested_image: string | null;
   sources: EventSourceRef[];
   items: EventItem[];
 }

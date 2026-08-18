@@ -86,6 +86,10 @@ DEFAULT_SOURCES = [
     {"name": "Cursor Changelog", "type": SourceType.RSS,
      "url": "https://www.cursor.com/changelog/rss.xml", "category": "devtools",
      "priority": Priority.MEDIUM, "confidence": 0.85},
+    # Outages / platform status
+    {"name": "Google Search Status", "type": SourceType.RSS,
+     "url": "https://status.search.google.com/en/feed.atom", "category": "status",
+     "priority": Priority.HIGH, "confidence": 0.95},
 ]
 
 

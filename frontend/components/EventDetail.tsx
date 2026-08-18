@@ -79,7 +79,11 @@ export function EventDetailView({ id }: { id: string }) {
             </Panel>
           </div>
 
-          <ContentPanel eventId={id} sourceUrl={data.items.find((i) => i.url)?.url ?? null} />
+          <ContentPanel
+            eventId={id}
+            sourceUrl={data.items.find((i) => i.url)?.url ?? null}
+            imageUrl={data.suggested_image}
+          />
 
           <div className="grid gap-6 lg:grid-cols-3">
             <Panel className="p-5 lg:col-span-1">

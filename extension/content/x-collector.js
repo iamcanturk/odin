@@ -191,6 +191,18 @@ async function flush() {
   }
 }
 
+// Background refresh: the service worker's alarm asks open X tabs to re-scan, so your own
+// posts' metrics and profile stats stay fresh even while you're not actively browsing.
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.type === "odin/rescan") {
+    lastProfileKey = null; // force a fresh profile snapshot even if the DOM is unchanged
+    scan();
+    sendResponse({ ok: true, buffered: buffer.size });
+    return true;
+  }
+  return false;
+});
+
 // Observe timeline mutations (new tweets as you scroll) + an initial scan.
 const observer = new MutationObserver(() => scan());
 observer.observe(document.body, { childList: true, subtree: true });

@@ -306,6 +306,13 @@ const M: Record<string, { tr: string; en: string }> = {
   "cp.copy": { tr: "Kopyala", en: "Copy" },
   "cp.copySource": { tr: "Kaynakla kopyala", en: "Copy + source" },
   "cp.copied": { tr: "Kopyalandı ✓", en: "Copied ✓" },
+  "cp.image": { tr: "Önerilen görsel", en: "Suggested image" },
+  "cp.imageHint": {
+    tr: "Kaynaktan alındı — tweete eklemek için indir veya bağlantıyı kopyala",
+    en: "Pulled from the source — download it or copy the link to attach",
+  },
+  "cp.copyImage": { tr: "Görsel bağlantısı", en: "Copy image link" },
+  "cp.openImage": { tr: "Aç", en: "Open" },
   "cp.regenerate": { tr: "Yeniden üret", en: "Regenerate" },
   "cp.generating": { tr: "Üretiliyor…", en: "Generating…" },
   "cp.none": {

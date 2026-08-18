@@ -37,6 +37,39 @@ SAMPLE_RSS = b"""<?xml version="1.0" encoding="UTF-8"?>
 """
 
 
+MEDIA_RSS = b"""<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:media="http://search.yahoo.com/mrss/"><channel>
+  <title>Media Feed</title>
+  <item>
+    <title>Story with a photo</title>
+    <link>https://example.com/p</link>
+    <guid>urn:p</guid>
+    <description>has an image</description>
+    <media:content url="https://cdn.example.com/photo.jpg" medium="image"/>
+    <enclosure url="https://cdn.example.com/alt.png" type="image/png"/>
+  </item>
+  <item>
+    <title>Story without a photo</title>
+    <link>https://example.com/q</link>
+    <guid>urn:q</guid>
+    <description>no image here</description>
+  </item>
+</channel></rss>
+"""
+
+
+def test_normalize_extracts_source_images() -> None:
+    entries, _ = parse_feed(MEDIA_RSS)
+    adapter = RSSAdapter("https://example.com/feed")
+    with_photo = adapter.normalize(entries[0])
+    urls = [m["url"] for m in with_photo.media]
+    assert "https://cdn.example.com/photo.jpg" in urls
+    assert all(m["type"] == "image" for m in with_photo.media)
+
+    without = adapter.normalize(entries[1])
+    assert without.media == []
+
+
 def test_strip_html() -> None:
     assert strip_html("<p>Big <b>news</b></p>") == "Big news"
     assert strip_html(None) is None

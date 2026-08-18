@@ -95,6 +95,35 @@ async function handleProfile(profile) {
   }
 }
 
+// ---- Background refresh ----
+// MV3 service workers are ephemeral, so a periodic alarm wakes us up. We can't scrape X
+// without a tab, but any OPEN x.com tab (even a background one) can be asked to re-scan,
+// which refreshes your own posts' metrics and profile stats without you doing anything.
+const REFRESH_ALARM = "odin-refresh";
+const REFRESH_MINUTES = 30;
+
+chrome.runtime.onInstalled.addListener(() => {
+  chrome.alarms.create(REFRESH_ALARM, { periodInMinutes: REFRESH_MINUTES });
+});
+chrome.runtime.onStartup.addListener(() => {
+  chrome.alarms.create(REFRESH_ALARM, { periodInMinutes: REFRESH_MINUTES });
+});
+
+chrome.alarms.onAlarm.addListener(async (alarm) => {
+  if (alarm.name !== REFRESH_ALARM) return;
+  const { odinEnabled = true } = await chrome.storage.local.get(["odinEnabled"]);
+  if (!odinEnabled) return;
+  const tabs = await chrome.tabs.query({ url: ["https://x.com/*", "https://twitter.com/*"] });
+  for (const tab of tabs) {
+    try {
+      await chrome.tabs.sendMessage(tab.id, { type: "odin/rescan" });
+    } catch {
+      // no content script in that tab (still loading) — skip it
+    }
+  }
+  console.debug(`[ODIN] background refresh pinged ${tabs.length} X tab(s)`);
+});
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === "odin/collect") {
     (async () => {

@@ -99,7 +99,42 @@ function CandidateCard({
   );
 }
 
-export function ContentPanel({ eventId, sourceUrl }: { eventId: string; sourceUrl?: string | null }) {
+function SuggestedImage({ url }: { url: string }) {
+  const { t } = useI18n();
+  return (
+    <div className="mb-4 rounded-lg border border-border overflow-hidden bg-panel-2">
+      <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-border-soft">
+        <div className="min-w-0">
+          <p className="text-[10px] uppercase tracking-widest text-muted">{t("cp.image")}</p>
+          <p className="text-[11px] text-faint truncate">{t("cp.imageHint")}</p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <CopyButton text={url} label={t("cp.copyImage")} />
+          <a
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rounded border border-border px-2 py-1 text-[11px] text-muted hover:text-text hover:border-accent/50 transition-colors"
+          >
+            {t("cp.openImage")}
+          </a>
+        </div>
+      </div>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={url} alt="" className="w-full max-h-64 object-cover" loading="lazy" />
+    </div>
+  );
+}
+
+export function ContentPanel({
+  eventId,
+  sourceUrl,
+  imageUrl,
+}: {
+  eventId: string;
+  sourceUrl?: string | null;
+  imageUrl?: string | null;
+}) {
   const { t, locale } = useI18n();
   const qc = useQueryClient();
   const [lang, setLang] = useState<"tr" | "en">(locale === "en" ? "en" : "tr");
@@ -181,6 +216,8 @@ export function ContentPanel({ eventId, sourceUrl }: { eventId: string; sourceUr
       {generate.error && (
         <p className="text-hot text-xs mb-2">{(generate.error as Error).message}</p>
       )}
+
+      {imageUrl && <SuggestedImage url={imageUrl} />}
 
       {candidates.length === 0 ? (
         <p className="text-sm text-muted">{t("cp.none")}</p>
