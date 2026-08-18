@@ -275,8 +275,13 @@ async def process_new_items(
     await apply_topic_matching(session, list(affected), embedder)
     await apply_opportunity(session, list(affected), now=now)
     if llm is not None:
+        settings = get_settings()
         await apply_enrichment(
-            session, list(affected), llm, threshold=get_settings().enrich_trend_threshold
+            session,
+            list(affected),
+            llm,
+            threshold=settings.enrich_trend_threshold,
+            language=settings.content_language,
         )
     return affected
 
