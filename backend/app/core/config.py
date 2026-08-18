@@ -39,6 +39,16 @@ class Settings(BaseSettings):
     # Shared token the browser extension must send to POST /api/v1/ingest/x. Empty = disabled.
     ingest_token: str = ""
 
+    # Single-user auth. Empty auth_password = auth DISABLED (dev). Set both in prod.
+    auth_username: str = "admin"
+    auth_password: str = ""
+    jwt_secret: str = "change-me-in-prod"
+    jwt_expire_hours: int = 168  # 7 days
+
+    @property
+    def auth_enabled(self) -> bool:
+        return bool(self.auth_password)
+
     # Embeddings (local sentence-transformers)
     embedding_model: str = "intfloat/multilingual-e5-small"
     embedding_dim: int = Field(default=384)

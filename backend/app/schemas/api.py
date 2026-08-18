@@ -13,6 +13,23 @@ class ORMModel(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+# ---- Auth ----
+
+
+class AuthConfig(BaseModel):
+    auth_required: bool
+
+
+class LoginRequest(BaseModel):
+    username: str = Field(min_length=1, max_length=100)
+    password: str = Field(min_length=1, max_length=200)
+
+
+class TokenResponse(BaseModel):
+    token: str
+    token_type: str = "bearer"
+
+
 # ---- Events ----
 
 

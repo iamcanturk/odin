@@ -21,6 +21,7 @@ dependencies = [
     "openai>=1.55",
     "python-dotenv>=1.0",
     "structlog>=24.4",
+    "pyjwt>=2.10",
 ]
 
 [project.optional-dependencies]
