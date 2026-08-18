@@ -1,0 +1,50 @@
+# Production BACKING SERVICES only (Postgres+pgvector, Redis).
+# The API, worker, and Next.js run natively (systemd / CloudPanel) — see README.md.
+#
+# Why Docker for these: CloudPanel's managed Postgres usually can't CREATE EXTENSION
+# vector (no superuser). The pgvector image ships the extension, avoiding that.
+#
+#   cd /home/odin/app/infra/deploy
+#   docker compose -f docker-compose.prod.yml --env-file /home/odin/app/.env up -d
+
+name: odin-prod
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: odin-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-odin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-odin}
+    # Bind to localhost only — never expose the DB publicly.
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - odin_pgdata:/var/lib/postgresql/data
+      - ./postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-odin} -d ${POSTGRES_DB:-odin}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: odin-redis
+    restart: always
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+    volumes:
+      - odin_redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  odin_pgdata:
+  odin_redisdata:

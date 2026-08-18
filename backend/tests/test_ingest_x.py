@@ -11,11 +11,16 @@ from app.core.config import get_settings
 from app.core.db import get_session
 from app.main import create_app
 from app.models import ContentItem, Source
+from app.providers.embedding import HashEmbeddingProvider
 
 
 @pytest.fixture
 async def client(db_sessionmaker, monkeypatch):
     monkeypatch.setattr(get_settings(), "ingest_token", "secret", raising=False)
+    # Use the torch-free hash embedder so tests never require the `ml` extra.
+    monkeypatch.setattr(
+        "app.api.v1.ingest.get_embedding_provider", lambda: HashEmbeddingProvider(dim=384)
+    )
 
     async def _get_session():
         async with db_sessionmaker() as session:
