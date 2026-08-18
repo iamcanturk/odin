@@ -13,6 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import ContentCandidate, Event, Post, PostMetric, PostPrediction
+from app.pipeline.evaluation import current_calibration
 from app.pipeline.predict import predict
 
 
@@ -48,12 +49,16 @@ async def approve_candidate(
     session.add(post)
     await session.flush()
 
+    # Fold in how wrong past predictions were, so the model self-corrects (§33).
+    calibration, impressions_per_like = await current_calibration(session)
     p = predict(
         candidate.text,
         viral_score=candidate.viral_score,
         opportunity_score=opportunity,
         recent_likes=await _recent_user_likes(session),
         personal_fit=personal,
+        calibration=calibration,
+        impressions_per_like=impressions_per_like,
     )
     prediction = PostPrediction(
         post_id=post.id,

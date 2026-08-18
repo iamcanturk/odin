@@ -19,7 +19,7 @@ def test_predict_scales_with_viral() -> None:
     low = predict("A neutral post", viral_score=20, opportunity_score=0, recent_likes=[100])
     high = predict("A neutral post", viral_score=90, opportunity_score=0, recent_likes=[100])
     assert high.predicted_likes > low.predicted_likes
-    assert high.model_version == "predict-v1"
+    assert high.model_version == "predict-v2"
     assert high.predicted_impressions > high.predicted_likes
 
 
@@ -76,3 +76,29 @@ async def test_mark_posted_sets_external_id(db_sessionmaker) -> None:
         assert updated is not None
         assert updated.status == "posted"
         assert updated.external_id == "1810000000000000009"
+
+
+def test_calibration_corrects_systematic_error() -> None:
+    """When we've been under-predicting, the next prediction scales up."""
+    base = predict("A neutral post", viral_score=50, opportunity_score=0, recent_likes=[100])
+    corrected = predict(
+        "A neutral post",
+        viral_score=50,
+        opportunity_score=0,
+        recent_likes=[100],
+        calibration=2.0,
+    )
+    assert corrected.predicted_likes > base.predicted_likes
+    assert corrected.features["calibration"] == 2.0
+
+
+def test_calibration_is_clamped_against_outliers() -> None:
+    from app.pipeline.predict import CALIBRATION_MAX, CALIBRATION_MIN, clamp_calibration
+
+    assert clamp_calibration(999.0) == CALIBRATION_MAX
+    assert clamp_calibration(0.0001) == CALIBRATION_MIN
+    wild = predict(
+        "A neutral post", viral_score=50, opportunity_score=0,
+        recent_likes=[100], calibration=999.0,
+    )
+    assert wild.features["calibration"] == CALIBRATION_MAX

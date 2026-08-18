@@ -54,3 +54,22 @@ async def test_evaluate_computes_errors(db_sessionmaker) -> None:
         assert summary.rmse > 0
         assert len(summary.items) == 2
         assert all(it.abs_error >= 0 for it in summary.items)
+
+
+def test_calibration_factor_detects_under_prediction() -> None:
+    from app.pipeline.evaluation import calibration_factor
+
+    # Predicted 10, actually got 20 every time -> we under-predict by 2x.
+    assert calibration_factor([(10.0, 20.0), (10.0, 20.0), (5.0, 10.0)]) == 2.0
+    # Spot on.
+    assert calibration_factor([(10.0, 10.0), (20.0, 20.0)]) == 1.0
+    # No data -> no correction.
+    assert calibration_factor([]) == 1.0
+
+
+def test_calibration_factor_ignores_a_single_viral_outlier() -> None:
+    from app.pipeline.evaluation import calibration_factor
+
+    # Four accurate posts and one 100x freak: the median keeps us honest.
+    pairs = [(10.0, 10.0), (10.0, 11.0), (10.0, 9.0), (10.0, 10.0), (10.0, 1000.0)]
+    assert calibration_factor(pairs) == 1.0
