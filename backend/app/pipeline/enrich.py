@@ -24,7 +24,14 @@ _SYSTEM = (
     "No markdown, no prose outside the JSON."
 )
 
+_LANG_NAME = {"en": "English", "tr": "Turkish"}
+
 HOT_STATUSES = {EventStatus.RISING, EventStatus.TRENDING}
+
+
+def _system_for(language: str) -> str:
+    name = _LANG_NAME.get(language, "English")
+    return f"{_SYSTEM} Write the summary in {name}. Keep entity names as-is."
 
 
 def should_enrich(event: Event, threshold: float) -> bool:
@@ -60,10 +67,13 @@ def parse_enrichment(raw: str) -> tuple[str | None, list[str]]:
 
 
 async def enrich_event(
-    title: str, item_texts: list[str], llm: LLMProvider
+    title: str, item_texts: list[str], llm: LLMProvider, *, language: str = "en"
 ) -> tuple[str | None, list[str]]:
     raw = await llm.generate(
-        build_prompt(title, item_texts), system=_SYSTEM, temperature=0.2, max_tokens=400
+        build_prompt(title, item_texts),
+        system=_system_for(language),
+        temperature=0.2,
+        max_tokens=400,
     )
     return parse_enrichment(raw)
 
@@ -74,6 +84,7 @@ async def apply_enrichment(
     llm: LLMProvider,
     *,
     threshold: float,
+    language: str = "en",
 ) -> int:
     """Enrich the gated subset of events. Returns the number enriched."""
     enriched = 0
@@ -86,7 +97,7 @@ async def apply_enrichment(
             .limit(8)
         )
         texts = [" ".join(p for p in (t, x) if p) for t, x in rows]
-        summary, entities = await enrich_event(event.title, texts, llm)
+        summary, entities = await enrich_event(event.title, texts, llm, language=language)
         if summary:
             event.summary = summary
         if entities:

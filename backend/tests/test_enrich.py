@@ -69,3 +69,22 @@ async def test_enrich_event_with_stub() -> None:
     summary, entities = await enrich_event("Title", ["a", "b"], _JSONStub())
     assert summary == "Stub summary."
     assert entities == ["Alpha", "Beta"]
+
+
+class _CapturingLLM(LLMProvider):
+    def __init__(self) -> None:
+        self.system = ""
+
+    async def generate(self, prompt, *, system=None, temperature=0.7, max_tokens=512) -> str:
+        self.system = system or ""
+        return '{"summary": "S", "entities": []}'
+
+
+@pytest.mark.asyncio
+async def test_enrich_language_in_prompt() -> None:
+    tr = _CapturingLLM()
+    await enrich_event("Title", ["a"], tr, language="tr")
+    assert "Turkish" in tr.system
+    en = _CapturingLLM()
+    await enrich_event("Title", ["a"], en, language="en")
+    assert "English" in en.system
