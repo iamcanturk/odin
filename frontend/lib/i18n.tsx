@@ -80,6 +80,12 @@ const M: Record<string, { tr: string; en: string }> = {
     tr: "Henüz olay yok. Kaynakları ekleyip ingestion worker'ı çalıştır.",
     en: "No events yet. Seed sources and run the ingestion worker to populate the console.",
   },
+  "greet.morning": { tr: "Günaydın", en: "Good morning" },
+  "greet.afternoon": { tr: "İyi günler", en: "Good afternoon" },
+  "greet.evening": { tr: "İyi akşamlar", en: "Good evening" },
+  "dash.foundN": { tr: "{n} olay izliyorum", en: "I'm tracking {n} events" },
+  "dash.relevantM": { tr: "{m} tanesi sana yüksek fırsat", en: "{m} are high-opportunity for you" },
+  "dash.allQuiet": { tr: "şu an öne çıkan fırsat yok", en: "nothing stands out right now" },
 
   // event card / detail
   "ev.source": { tr: "kaynak", en: "source" },
