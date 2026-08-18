@@ -63,6 +63,19 @@ async def test_language_flows_into_prompt() -> None:
 
 
 @pytest.mark.asyncio
+async def test_kind_filters_to_single_angle() -> None:
+    drafts = await generate_candidates(_event(), [], _EchoLLM(), angles=["contrarian"])
+    assert len(drafts) == 1
+    assert drafts[0].angle == "contrarian"
+
+
+@pytest.mark.asyncio
+async def test_unknown_kind_falls_back_to_all_angles() -> None:
+    drafts = await generate_candidates(_event(), [], _EchoLLM(), angles=["nonsense"])
+    assert {d.angle for d in drafts} == set(ANGLES)
+
+
+@pytest.mark.asyncio
 async def test_contrarian_scores_high_novelty() -> None:
     drafts = await generate_candidates(_event(), [], _EchoLLM())
     by_angle = {d.angle: d for d in drafts}

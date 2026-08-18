@@ -72,6 +72,76 @@ function scan() {
   }
   if (added > 0) console.debug(`[ODIN] captured ${added} post(s), buffer=${buffer.size}`);
   scheduleSend();
+  scanProfile();
+}
+
+// ---- Profile stats capture (PROJECT.md §12: follower/following over time) ----
+
+const RESERVED_PATHS = new Set([
+  "home", "explore", "notifications", "messages", "search", "settings",
+  "i", "compose", "bookmarks", "hashtag", "lists", "communities", "jobs",
+]);
+
+let lastProfileKey = null;
+
+function currentHandle() {
+  const seg = location.pathname.split("/").filter(Boolean);
+  if (seg.length !== 1) return null; // profile pages are single-segment (x.com/<handle>)
+  const h = seg[0].toLowerCase();
+  return RESERVED_PATHS.has(h) ? null : h;
+}
+
+function statCount(handle, suffix) {
+  // Header stat anchors: /<handle>/following and /<handle>/verified_followers (or /followers).
+  const sel = suffix
+    .map((s) => `a[href="/${handle}/${s}"]`)
+    .join(",");
+  const el = document.querySelector(sel);
+  if (!el) return null;
+  // Prefer an exact value in a title attribute (X abbreviates the visible text at scale).
+  const titled = el.querySelector("[title]");
+  const raw = (titled && titled.getAttribute("title")) || el.textContent || "";
+  return parseCount(raw);
+}
+
+function tweetCount() {
+  const header = document.querySelector('[data-testid="primaryColumn"]');
+  if (!header) return null;
+  for (const el of header.querySelectorAll('div[dir="ltr"], h2 ~ div, span')) {
+    const m = (el.textContent || "").trim().match(/^([\d.,]+\s*[KMB]?)\s+(posts|gönderi|tweets)/i);
+    if (m) return parseCount(m[1]);
+  }
+  return null;
+}
+
+async function scanProfile() {
+  const handle = currentHandle();
+  if (!handle) return;
+  const { odinEnabled = true, odinHandle = "" } = await chrome.storage.local.get([
+    "odinEnabled",
+    "odinHandle",
+  ]);
+  // Only track the user's own profile (matches the is_self handle in Settings).
+  if (!odinEnabled || !odinHandle || normHandle(odinHandle) !== handle) return;
+
+  const followers = statCount(handle, ["verified_followers", "followers"]);
+  const following = statCount(handle, ["following"]);
+  const tweets = tweetCount();
+  if (followers == null && following == null) return;
+
+  const key = `${handle}:${followers}:${following}:${tweets}`;
+  if (key === lastProfileKey) return; // don't re-send identical stats within a page view
+  lastProfileKey = key;
+
+  try {
+    const res = await chrome.runtime.sendMessage({
+      type: "odin/profile",
+      profile: { handle, followers, following, tweets },
+    });
+    console.debug("[ODIN] profile stats →", res);
+  } catch (err) {
+    console.warn("[ODIN] failed to hand off profile stats:", err);
+  }
 }
 
 function scheduleSend() {

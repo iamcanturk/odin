@@ -173,12 +173,14 @@ async def generate_event_content(
     event_id: uuid.UUID,
     session: AsyncSession = Depends(get_session),
     language: str = Query("", pattern="^(en|tr|)$"),
+    kind: str = Query("", pattern="^(breaking|contrarian|technical|educational|question|)$"),
 ) -> list[ContentCandidate]:
     event = await session.get(Event, event_id)
     if event is None:
         raise HTTPException(status_code=404, detail="Event not found")
     lang = language or get_settings().content_language
-    return await create_candidates(session, event, get_llm_provider(), language=lang)
+    angles = [kind] if kind else None
+    return await create_candidates(session, event, get_llm_provider(), language=lang, angles=angles)
 
 
 @router.get("/{event_id}/candidates", response_model=list[CandidateRead])

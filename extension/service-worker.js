@@ -69,10 +69,43 @@ async function handleCollect(items) {
   }
 }
 
+async function handleProfile(profile) {
+  const cfg = await getConfig();
+  if (!cfg.odinEnabled) return { skipped: "disabled" };
+  if (!cfg.odinToken || !cfg.odinEndpoint) return { skipped: "unconfigured" };
+  try {
+    const res = await fetch(`${cfg.odinEndpoint}/ingest/x/profile`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Ingest-Token": cfg.odinToken },
+      body: JSON.stringify(profile),
+    });
+    if (!res.ok) {
+      const msg = res.status === 401 ? "Bad token (401)" : `HTTP ${res.status}`;
+      await setStatus(msg);
+      return { error: msg };
+    }
+    const body = await res.json();
+    if (body.stored) await flashBadge("👤", "#37d39b");
+    console.debug("[ODIN] profile snapshot:", body);
+    return body;
+  } catch (err) {
+    await setStatus(String(err));
+    console.warn("[ODIN] profile error:", err);
+    return { error: String(err) };
+  }
+}
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === "odin/collect") {
     (async () => {
       const result = await handleCollect(message.items || []);
+      sendResponse(result);
+    })();
+    return true; // async response
+  }
+  if (message?.type === "odin/profile") {
+    (async () => {
+      const result = await handleProfile(message.profile || {});
       sendResponse(result);
     })();
     return true; // async response

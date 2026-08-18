@@ -10,6 +10,7 @@ import {
 } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { EmptyState, ErrorState, LoadingState, Panel } from "@/components/ui";
+import { GrowthPanel } from "@/components/GrowthPanel";
 
 const FEATURE_LABELS: Record<string, string> = {
   avg_length: "Avg length (chars)",
@@ -99,6 +100,8 @@ export default function ProfilePage() {
           {rebuild.isPending ? t("pf.rebuilding") : t("pf.rebuild")}
         </button>
       </div>
+
+      <GrowthPanel />
 
       {isLoading ? (
         <LoadingState label="Loading profile…" />

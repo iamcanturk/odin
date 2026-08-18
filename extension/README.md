@@ -10,6 +10,10 @@ collector, browsing normally.
   X's markup changes often) and hands batches to the service worker.
 - The **service worker** de-dupes by post id and POSTs new posts to your ODIN API with the
   `X-Ingest-Token` header. Items then flow through ODIN's normal clustering/scoring pipeline.
+- **Profile stats**: when you visit *your own* profile (the handle you set in Settings), the
+  extension reads your follower / following / post counts and POSTs a snapshot to
+  `POST /api/v1/ingest/x/profile`. ODIN charts this growth over time on the Profile page.
+  Unchanged stats are deduped server-side, so revisiting is cheap.
 - Nothing is sent until you set an **endpoint + token** in Settings and leave capturing **ON**.
 
 ## Setup
@@ -24,6 +28,8 @@ collector, browsing normally.
 3. Open the extension's **Settings** and enter:
    - **API base URL** — e.g. `http://localhost:8000/api/v1` (or `https://odin.iamcanturk.dev/api/v1`)
    - **Ingest token** — the same value as `INGEST_TOKEN`
+   - **Your handle** — e.g. `@yourname`. Marks your own posts for style/performance analysis
+     and enables follower-growth tracking on your profile page.
 4. Browse X. The toolbar badge flashes the number of posts accepted; the popup shows the running
    total and a capture ON/OFF toggle.
 

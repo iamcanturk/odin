@@ -73,6 +73,19 @@ const M: Record<string, { tr: string; en: string }> = {
     en: "No performance data yet. Import your posts.",
   },
   "pf.postsN": { tr: "gönderi", en: "posts" },
+  "pf.growth": { tr: "Takipçi büyümesi", en: "Follower growth" },
+  "pf.growthHint": {
+    tr: "Kendi profilinde gezindikçe uzantı sayıları kaydeder.",
+    en: "The extension records your counts as you browse your own profile.",
+  },
+  "pf.followers": { tr: "Takipçi", en: "Followers" },
+  "pf.following": { tr: "Takip", en: "Following" },
+  "pf.tweets": { tr: "Gönderi", en: "Posts" },
+  "pf.snapshotsN": { tr: "anlık kayıt", en: "snapshots" },
+  "pf.noGrowth": {
+    tr: "Henüz profil verisi yok — uzantıda handle'ını ayarla ve X profilini aç.",
+    en: "No profile data yet — set your handle in the extension and visit your X profile.",
+  },
   "header.signOut": { tr: "Çıkış", en: "Sign out" },
   "header.notifications": { tr: "Bildirimler", en: "Notifications" },
 
@@ -241,6 +254,14 @@ const M: Record<string, { tr: string; en: string }> = {
   // content panel
   "cp.generate": { tr: "İçerik üret", en: "Generate content" },
   "cp.generateAngles": { tr: "Açı üret", en: "Generate angles" },
+  "cp.lang": { tr: "Dil", en: "Language" },
+  "cp.kind": { tr: "Tweet türü", en: "Tweet kind" },
+  "cp.kind.all": { tr: "Tüm açılar", en: "All angles" },
+  "cp.kind.breaking": { tr: "Son dakika", en: "Breaking" },
+  "cp.kind.contrarian": { tr: "Karşıt görüş", en: "Contrarian" },
+  "cp.kind.technical": { tr: "Teknik detay", en: "Technical" },
+  "cp.kind.educational": { tr: "Öğretici", en: "Educational" },
+  "cp.kind.question": { tr: "Soru / tartışma", en: "Question" },
   "cp.regenerate": { tr: "Yeniden üret", en: "Regenerate" },
   "cp.generating": { tr: "Üretiliyor…", en: "Generating…" },
   "cp.none": {

@@ -78,10 +78,15 @@ async def generate_candidates(
     *,
     platform: str = "x",
     language: str = "en",
+    angles: list[str] | None = None,
 ) -> list[CandidateDraft]:
     system = _system_for(language)
+    # When the user picks a specific kind, generate only that angle; else all.
+    selected = {a: ANGLES[a] for a in angles if a in ANGLES} if angles else ANGLES
+    if not selected:
+        selected = ANGLES
     drafts: list[CandidateDraft] = []
-    for angle, (instruction, novelty, risk) in ANGLES.items():
+    for angle, (instruction, novelty, risk) in selected.items():
         text = await llm.generate(
             _prompt(event, item_texts, instruction),
             system=system,
@@ -117,6 +122,7 @@ async def create_candidates(
     *,
     platform: str = "x",
     language: str = "en",
+    angles: list[str] | None = None,
 ) -> list[ContentCandidate]:
     """Regenerate + persist ranked candidates for an event."""
     rows = await session.execute(
@@ -126,7 +132,9 @@ async def create_candidates(
     )
     texts = [" ".join(p for p in (t, x) if p) for t, x in rows]
 
-    drafts = await generate_candidates(event, texts, llm, platform=platform, language=language)
+    drafts = await generate_candidates(
+        event, texts, llm, platform=platform, language=language, angles=angles
+    )
 
     await session.execute(
         delete(ContentCandidate).where(ContentCandidate.event_id == event.id)
