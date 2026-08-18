@@ -430,6 +430,15 @@ export const fetchProfileGrowth = () => getJSON<ProfileGrowth>("/profile/growth"
 
 // ---- Imported tweets (the user's own posts + metrics) ----
 
+export interface MetricPoint {
+  captured_at: string;
+  minutes_after_post: number | null;
+  likes: number | null;
+  reposts: number | null;
+  replies: number | null;
+  impressions: number | null;
+}
+
 export interface ImportedTweet {
   id: string;
   external_id: string | null;
@@ -441,6 +450,7 @@ export interface ImportedTweet {
   replies: number | null;
   bookmarks: number | null;
   impressions: number | null;
+  history: MetricPoint[];
 }
 
 export const fetchImportedTweets = () => getJSON<ImportedTweet[]>("/profile/tweets");

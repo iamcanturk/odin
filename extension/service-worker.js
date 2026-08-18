@@ -10,6 +10,7 @@ async function getConfig() {
     odinEnabled: true,
     odinSent: 0,
     odinSeen: [],
+    odinHandle: "",
   });
 }
 
@@ -119,34 +120,89 @@ async function handleStyle(handle, items) {
   }
 }
 
-// ---- Background refresh ----
-// MV3 service workers are ephemeral, so a periodic alarm wakes us up. We can't scrape X
-// without a tab, but any OPEN x.com tab (even a background one) can be asked to re-scan,
-// which refreshes your own posts' metrics and profile stats without you doing anything.
+// ---- Background metric sampling ----
+// Engagement is front-loaded: most of a tweet's reach lands in the first hour, so ODIN
+// wants dense samples early. MV3 service workers are ephemeral, so an alarm wakes us up;
+// the backend decides whether anything is actually due, and if so we scrape the user's
+// profile (reusing an open X tab, or briefly opening a background one) to capture the
+// metrics of every recent post at once.
 const REFRESH_ALARM = "odin-refresh";
-const REFRESH_MINUTES = 30;
+const REFRESH_MINUTES = 5;
 
-chrome.runtime.onInstalled.addListener(() => {
+function scheduleAlarm() {
   chrome.alarms.create(REFRESH_ALARM, { periodInMinutes: REFRESH_MINUTES });
-});
-chrome.runtime.onStartup.addListener(() => {
-  chrome.alarms.create(REFRESH_ALARM, { periodInMinutes: REFRESH_MINUTES });
-});
+}
+chrome.runtime.onInstalled.addListener(scheduleAlarm);
+chrome.runtime.onStartup.addListener(scheduleAlarm);
 
-chrome.alarms.onAlarm.addListener(async (alarm) => {
-  if (alarm.name !== REFRESH_ALARM) return;
-  const { odinEnabled = true } = await chrome.storage.local.get(["odinEnabled"]);
-  if (!odinEnabled) return;
+async function isSampleDue(cfg) {
+  if (!cfg.odinToken || !cfg.odinEndpoint) return false;
+  try {
+    const res = await fetch(`${cfg.odinEndpoint}/ingest/x/watch`, {
+      headers: { "X-Ingest-Token": cfg.odinToken },
+    });
+    if (!res.ok) return false;
+    const body = await res.json();
+    if (body.due) {
+      console.debug(`[ODIN] ${body.items.length} post(s) due for a metric sample`, body.items);
+    }
+    return !!body.due;
+  } catch {
+    return false;
+  }
+}
+
+/** Ask any already-open X tab to re-scan. Returns true if one handled it. */
+async function pingOpenTabs() {
   const tabs = await chrome.tabs.query({ url: ["https://x.com/*", "https://twitter.com/*"] });
+  let reached = 0;
   for (const tab of tabs) {
     try {
       await chrome.tabs.sendMessage(tab.id, { type: "odin/rescan" });
+      reached += 1;
     } catch {
-      // no content script in that tab (still loading) — skip it
+      // no content script there yet — skip
     }
   }
-  console.debug(`[ODIN] background refresh pinged ${tabs.length} X tab(s)`);
+  return reached > 0;
+}
+
+/** Last resort: open the user's profile in a background tab, scrape it, close it. */
+async function sampleViaBackgroundTab(handle) {
+  if (!handle) return;
+  const tab = await chrome.tabs.create({
+    url: `https://x.com/${handle}`,
+    active: false, // never steals focus
+  });
+  // Give the SPA time to render the timeline, then let the content script report.
+  await new Promise((r) => setTimeout(r, 9000));
+  try {
+    await chrome.tabs.sendMessage(tab.id, { type: "odin/rescan" });
+    await new Promise((r) => setTimeout(r, 4000)); // let the debounced flush fire
+  } catch {
+    /* tab never got a content script */
+  }
+  try {
+    await chrome.tabs.remove(tab.id);
+  } catch {
+    /* already closed */
+  }
+  console.debug("[ODIN] sampled metrics via a background tab");
+}
+
+chrome.alarms.onAlarm.addListener(async (alarm) => {
+  if (alarm.name !== REFRESH_ALARM) return;
+  const cfg = await getConfig();
+  if (!cfg.odinEnabled) return;
+  if (!(await isSampleDue(cfg))) return; // nothing to do — don't touch X at all
+
+  if (await pingOpenTabs()) return;
+  await sampleViaBackgroundTab(normalizeHandle(cfg.odinHandle));
 });
+
+function normalizeHandle(h) {
+  return (h || "").replace(/^@/, "").trim().toLowerCase();
+}
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === "odin/collect") {

@@ -231,6 +231,15 @@ class CandidateUpdate(BaseModel):
     text: str = Field(min_length=1, max_length=10000)
 
 
+class MetricPoint(BaseModel):
+    captured_at: datetime
+    minutes_after_post: int | None = None
+    likes: int | None = None
+    reposts: int | None = None
+    replies: int | None = None
+    impressions: int | None = None
+
+
 class ImportedTweet(BaseModel):
     """The user's own imported tweet + its latest engagement snapshot."""
 
