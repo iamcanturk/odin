@@ -107,3 +107,31 @@ async def test_imported_tweets_lists_own_posts_with_metrics(
     assert tweets[0]["text"] == "my own tweet"
     assert tweets[0]["likes"] == 42
     assert tweets[0]["impressions"] == 3000
+
+
+async def test_imported_tweets_include_metric_history(client: httpx.AsyncClient) -> None:
+    """The history field must always be present — the profile page calls .filter() on it."""
+    headers = {"X-Ingest-Token": "secret"}
+    payload = {
+        "items": [
+            {
+                "id": "6001",
+                "text": "tracked tweet",
+                "author_handle": "@me",
+                "created_at": "2026-08-18T10:00:00Z",
+                "metrics": {"likes": 5, "impressions": 100},
+                "is_self": True,
+            }
+        ]
+    }
+    await client.post("/api/v1/ingest/x", json=payload, headers=headers)
+
+    tweets = (await client.get("/api/v1/profile/tweets")).json()
+    assert len(tweets) == 1
+    tw = tweets[0]
+    assert "history" in tw, "the profile page does .filter() on history; it must be sent"
+    assert len(tw["history"]) == 1
+    point = tw["history"][0]
+    assert point["impressions"] == 100
+    # Position on the first-hour curve.
+    assert point["minutes_after_post"] is not None
