@@ -8,7 +8,7 @@ from sqlalchemy import func, select
 
 from app.models import Event, Notification, Source
 from app.models.enums import EventStatus, SourceType
-from app.pipeline.notify import emit_for_events, emit_for_sources
+from app.pipeline.notify import emit_for_events, emit_for_sources, emit_trend_spikes
 
 
 def _event(opp: float) -> Event:
@@ -57,3 +57,26 @@ async def test_source_failure_emits_once(db_sessionmaker) -> None:
         note = (await session.execute(select(Notification))).scalar_one()
         assert note.type == "source_failure"
         assert note.severity == "warning"
+
+
+async def test_trend_spike_emits_once(db_sessionmaker) -> None:
+    async with db_sessionmaker() as session:
+        event = _event(30)
+        event.velocity = {"acceleration": 0.8}  # fast-rising
+        session.add(event)
+        await session.flush()
+
+        assert await emit_trend_spikes(session, [event]) == 1
+        assert await emit_trend_spikes(session, [event]) == 0  # deduped
+        await session.commit()
+        note = (await session.execute(select(Notification))).scalar_one()
+        assert note.type == "trend_spike"
+
+
+async def test_no_trend_spike_when_slow(db_sessionmaker) -> None:
+    async with db_sessionmaker() as session:
+        event = _event(30)
+        event.velocity = {"acceleration": 0.1}
+        session.add(event)
+        await session.flush()
+        assert await emit_trend_spikes(session, [event]) == 0
