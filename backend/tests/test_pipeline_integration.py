@@ -12,6 +12,7 @@ from app.pipeline.clustering import ClusterItem, cluster_items
 from app.pipeline.content import create_candidates
 from app.pipeline.evaluation import evaluate
 from app.pipeline.ingest import run_ingestion
+from app.pipeline.performance import compute_performance
 from app.pipeline.posts import import_user_post
 from app.pipeline.publish import approve_candidate, mark_posted
 from app.pipeline.style import build_style_profile
@@ -233,3 +234,28 @@ async def test_m3_approve_post_metric_evaluate(db_sessionmaker) -> None:
         assert summary.evaluated == 1
         assert summary.mae > 0  # predicted != actual
         assert summary.items[0].actual_likes == 140
+
+
+async def test_m5_performance_over_imported_posts(db_sessionmaker) -> None:
+    """Import self-posts with metrics + a topic -> personal performance ranks categories."""
+    async with db_sessionmaker() as session:
+        session.add(Topic(name="AI", keywords=["openai", "gpt"]))
+        await session.flush()
+        # A well-performing question about AI vs a low-engagement plain post.
+        await import_user_post(
+            session,
+            XIngestItem(id="q1", text="What will OpenAI ship in gpt-6?", is_self=True,
+                        metrics=XMetrics(likes=200, replies=30)),
+        )
+        await import_user_post(
+            session,
+            XIngestItem(id="p1", text="a plain quiet note", is_self=True,
+                        metrics=XMetrics(likes=1)),
+        )
+        await session.commit()
+
+        summary = await compute_performance(session)
+        assert summary.total_posts == 2
+        by_type = {c.category: c for c in summary.by_type}
+        assert by_type["question"].score > by_type["plain"].score
+        assert any(c.category == "AI" for c in summary.by_topic)
