@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends
 
 from app.api.v1 import (
     auth,
+    compose,
     evaluation,
     events,
     ingest,
@@ -42,3 +43,4 @@ api_router.include_router(evaluation.router, dependencies=[_protected])
 api_router.include_router(notifications.router, dependencies=[_protected])
 api_router.include_router(performance.router, dependencies=[_protected])
 api_router.include_router(system.router, dependencies=[_protected])
+api_router.include_router(compose.router, dependencies=[_protected])

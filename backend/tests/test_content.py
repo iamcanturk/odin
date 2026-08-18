@@ -104,3 +104,21 @@ async def test_contrarian_scores_high_novelty() -> None:
     by_angle = {d.angle: d for d in drafts}
     assert by_angle["contrarian"].novelty_score > by_angle["educational"].novelty_score
     assert by_angle["contrarian"].risk_score > by_angle["technical"].risk_score
+
+
+@pytest.mark.asyncio
+async def test_story_and_thread_formats_in_prompt() -> None:
+    llm = _CapturingLLM()
+    await generate_candidates(_event(), [], llm, angles=["breaking"], length="story")
+    assert any("narrative" in s or "story" in s.lower() for s in llm.systems)
+
+    llm2 = _CapturingLLM()
+    await generate_candidates(_event(), [], llm2, angles=["breaking"], length="thread")
+    assert any("thread" in s.lower() for s in llm2.systems)
+
+
+@pytest.mark.asyncio
+async def test_general_audience_asks_for_plain_words() -> None:
+    llm = _CapturingLLM()
+    await generate_candidates(_event(), [], llm, angles=["breaking"], audience="general")
+    assert any("non-technical" in s for s in llm.systems)
