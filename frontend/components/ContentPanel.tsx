@@ -4,8 +4,10 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   approveCandidate,
+  deleteCandidate,
   fetchCandidates,
   generateCandidates,
+  updateCandidate,
   type ApproveResponse,
   type Candidate,
   type TweetKind,
@@ -53,11 +55,28 @@ function CandidateCard({
   sourceUrl?: string | null;
 }) {
   const { t } = useI18n();
+  const qc = useQueryClient();
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(c.text);
+
   const approve = useMutation<ApproveResponse, Error, void>({
     mutationFn: () => approveCandidate(eventId, c.id),
   });
+  const save = useMutation({
+    mutationFn: () => updateCandidate(eventId, c.id, draft),
+    onSuccess: () => {
+      setEditing(false);
+      qc.invalidateQueries({ queryKey: ["candidates", eventId] });
+    },
+  });
+  const remove = useMutation({
+    mutationFn: () => deleteCandidate(eventId, c.id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["candidates", eventId] }),
+  });
+
   const pred = approve.data?.prediction;
-  const withSource = sourceUrl ? `${c.text}\n\n${sourceUrl}` : c.text;
+  const text = c.text;
+  const withSource = sourceUrl ? `${text}\n\n${sourceUrl}` : text;
 
   return (
     <Panel className="p-4">
@@ -65,17 +84,70 @@ function CandidateCard({
         <span className="text-[10px] font-mono uppercase tracking-widest text-accent">
           #{c.rank} · {c.angle}
         </span>
-        <span
-          className="font-mono text-sm tabular-nums"
-          style={{ color: scoreColor(c.viral_score) }}
-        >
-          {c.viral_score.toFixed(0)}
-        </span>
+        <div className="flex items-center gap-3">
+          <span className="font-mono text-[10px] text-faint tabular-nums">
+            {t("cp.chars", { n: text.length })}
+          </span>
+          <span
+            className="font-mono text-sm tabular-nums"
+            style={{ color: scoreColor(c.viral_score) }}
+          >
+            {c.viral_score.toFixed(0)}
+          </span>
+        </div>
       </div>
-      <p className="text-sm text-text mt-2 whitespace-pre-wrap">{c.text}</p>
+
+      {editing ? (
+        <div className="mt-2">
+          <textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            rows={Math.min(12, Math.max(3, Math.ceil(draft.length / 60)))}
+            className="w-full rounded-md border border-border bg-panel-2 px-3 py-2 text-sm outline-none focus:border-accent/60 resize-y"
+          />
+          <div className="flex items-center gap-2 mt-2">
+            <button
+              onClick={() => save.mutate()}
+              disabled={save.isPending || !draft.trim()}
+              className="rounded border border-good/50 px-2 py-1 text-[11px] text-good hover:bg-good/10 disabled:opacity-40 transition-colors"
+            >
+              {t("cp.save")}
+            </button>
+            <button
+              onClick={() => {
+                setDraft(c.text);
+                setEditing(false);
+              }}
+              className="rounded border border-border px-2 py-1 text-[11px] text-muted hover:text-text transition-colors"
+            >
+              {t("cp.cancel")}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <p className="text-sm text-text mt-2 whitespace-pre-wrap">{text}</p>
+      )}
+
       <div className="flex flex-wrap items-center gap-2 mt-3">
-        <CopyButton text={c.text} label={t("cp.copy")} />
+        <CopyButton text={text} label={t("cp.copy")} />
         {sourceUrl && <CopyButton text={withSource} label={t("cp.copySource")} />}
+        {!editing && (
+          <>
+            <button
+              onClick={() => setEditing(true)}
+              className="rounded border border-border px-2 py-1 text-[11px] text-muted hover:text-text hover:border-accent/50 transition-colors"
+            >
+              {t("cp.edit")}
+            </button>
+            <button
+              onClick={() => remove.mutate()}
+              disabled={remove.isPending}
+              className="rounded border border-border px-2 py-1 text-[11px] text-muted hover:text-hot hover:border-hot/50 disabled:opacity-40 transition-colors"
+            >
+              {t("cp.delete")}
+            </button>
+          </>
+        )}
         <div className="flex gap-3 text-[10px] text-muted font-mono ml-auto">
           <span>trend {c.trend_score.toFixed(0)}</span>
           <span>you {c.personal_score.toFixed(0)}</span>
@@ -197,6 +269,8 @@ export function ContentPanel({
             >
               <option value="short">{t("cp.length.short")}</option>
               <option value="long">{t("cp.length.long")}</option>
+              <option value="story">{t("co.fmt.story")}</option>
+              <option value="thread">{t("co.fmt.thread")}</option>
             </select>
           </label>
           <button

@@ -205,7 +205,7 @@ export type TweetKind =
   | "educational"
   | "question";
 
-export type TweetLength = "short" | "long";
+export type TweetLength = "short" | "long" | "story" | "thread";
 
 export const generateCandidates = (
   eventId: string,
@@ -259,6 +259,14 @@ export const fetchPosts = (status?: string) =>
   getJSON<Post[]>(`/posts${status ? `?status=${status}` : ""}`);
 export const markPosted = (postId: string, externalId: string) =>
   send<Post>(`/posts/${postId}/posted`, "POST", { external_id: externalId });
+
+export const updateCandidate = (eventId: string, candidateId: string, text: string) =>
+  send<Candidate>(`/events/${eventId}/candidates/${candidateId}`, "PATCH", { text });
+export const deleteCandidate = (eventId: string, candidateId: string) =>
+  send<void>(`/events/${eventId}/candidates/${candidateId}`, "DELETE");
+export const updatePost = (postId: string, text: string) =>
+  send<Post>(`/posts/${postId}`, "PATCH", { text });
+export const deletePost = (postId: string) => send<void>(`/posts/${postId}`, "DELETE");
 
 // ---- Evaluation ----
 
