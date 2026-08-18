@@ -1,4 +1,4 @@
-"""Tests for the inbound X ingestion endpoint (isolated DB)."""
+"""Tests for the inbound X ingestion endpoint — output-only (own posts only)."""
 
 from __future__ import annotations
 
@@ -10,9 +10,7 @@ from sqlalchemy import func, select
 from app.core.config import get_settings
 from app.core.db import get_session
 from app.main import create_app
-from app.models import ContentItem, Source
-from app.pipeline.ingest import process_pending
-from app.providers.embedding import HashEmbeddingProvider
+from app.models import ContentItem, Post, PostMetric
 
 
 @pytest.fixture
@@ -35,12 +33,13 @@ def _payload():
         "items": [
             {
                 "id": "1001",
-                "text": "OpenAI just shipped GPT-X and it is wild",
-                "author_handle": "@someone",
+                "text": "My own take on GPT-X",
+                "author_handle": "@me",
                 "created_at": "2026-08-18T10:00:00Z",
-                "metrics": {"likes": 120, "replies": 8, "reposts": 30},
+                "metrics": {"likes": 120, "reposts": 30, "impressions": 9000},
+                "is_self": True,
             },
-            {"id": "1002", "text": "A second unrelated post about gardening"},
+            {"id": "1002", "text": "Someone else's tweet", "author_handle": "@other"},
         ]
     }
 
@@ -50,55 +49,39 @@ async def test_requires_token(client: httpx.AsyncClient) -> None:
     assert resp.status_code == 401
 
 
-async def test_ingests_and_dedupes(client: httpx.AsyncClient) -> None:
+async def test_imports_only_own_posts_no_events(
+    db_sessionmaker, client: httpx.AsyncClient
+) -> None:
     headers = {"X-Ingest-Token": "secret"}
-    first = await client.post("/api/v1/ingest/x", json=_payload(), headers=headers)
-    assert first.status_code == 201
-    body = first.json()
+    resp = await client.post("/api/v1/ingest/x", json=_payload(), headers=headers)
+    assert resp.status_code == 201
+    body = resp.json()
     assert body["received"] == 2
-    assert body["created"] == 2
+    assert body["created"] == 1  # only the is_self post
+    assert body["events_created"] == 0
 
-    # Second POST of the same items creates nothing new (dedup on content_hash).
-    second = await client.post("/api/v1/ingest/x", json=_payload(), headers=headers)
-    assert second.json()["created"] == 0
-    assert second.json()["duplicates"] == 2
+    async with db_sessionmaker() as session:
+        # X is not an event source: no ContentItems are created.
+        assert await session.scalar(select(func.count(ContentItem.id))) == 0
+        # The user's own post is imported with its engagement snapshot (incl. impressions).
+        assert await session.scalar(select(func.count(Post.id))) == 1
+        metric = (await session.execute(select(PostMetric))).scalar_one()
+        assert metric.likes == 120
+        assert metric.reposts == 30
+        assert metric.impressions == 9000
 
 
-async def test_creates_x_source_and_items(db_sessionmaker, client: httpx.AsyncClient) -> None:
+async def test_own_post_metrics_update_is_appended(
+    db_sessionmaker, client: httpx.AsyncClient
+) -> None:
     headers = {"X-Ingest-Token": "secret"}
     await client.post("/api/v1/ingest/x", json=_payload(), headers=headers)
 
-    async with db_sessionmaker() as session:
-        src = (
-            await session.execute(select(Source).where(Source.name == "X"))
-        ).scalar_one()
-        assert src.type == "x"
-        assert src.enabled is False  # inbound-only
-        count = await session.scalar(select(func.count(ContentItem.id)))
-        assert count == 2
-
-
-async def test_inbound_returns_fast_then_worker_processes(
-    db_sessionmaker, client: httpx.AsyncClient
-) -> None:
-    # POST stores items WITHOUT embedding/clustering (event_id null) and returns fast.
-    resp = await client.post(
-        "/api/v1/ingest/x", json=_payload(), headers={"X-Ingest-Token": "secret"}
-    )
-    assert resp.status_code == 201
-    assert resp.json()["events_created"] == 0  # processing is deferred
+    # Re-post the same tweet with grown metrics -> a new snapshot, same Post.
+    grown = _payload()
+    grown["items"][0]["metrics"] = {"likes": 200, "reposts": 45, "impressions": 15000}
+    await client.post("/api/v1/ingest/x", json=grown, headers=headers)
 
     async with db_sessionmaker() as session:
-        unassigned = await session.scalar(
-            select(func.count(ContentItem.id)).where(ContentItem.event_id.is_(None))
-        )
-        assert unassigned == 2
-
-        # The worker step processes pending items -> events assigned + scored.
-        stats = await process_pending(session, HashEmbeddingProvider(dim=384))
-        assert stats.items_created == 2
-        assert stats.events_created >= 1
-        remaining = await session.scalar(
-            select(func.count(ContentItem.id)).where(ContentItem.event_id.is_(None))
-        )
-        assert remaining == 0
+        assert await session.scalar(select(func.count(Post.id))) == 1
+        assert await session.scalar(select(func.count(PostMetric.id))) == 2

@@ -25,6 +25,13 @@ function metricFor(article, testid) {
   return el ? parseCount(el.getAttribute("aria-label")) : null;
 }
 
+function viewsFor(article) {
+  // View count sits behind the analytics link in the action bar (best-effort).
+  const a = article.querySelector('a[href$="/analytics"]');
+  if (!a) return null;
+  return parseCount(a.getAttribute("aria-label")) ?? parseCount(a.textContent);
+}
+
 function extractTweet(article) {
   const link = article.querySelector('a[href*="/status/"]');
   const href = link ? link.getAttribute("href") : null;
@@ -54,6 +61,7 @@ function extractTweet(article) {
       replies: metricFor(article, "reply"),
       reposts: metricFor(article, "retweet"),
       bookmarks: metricFor(article, "bookmark"),
+      impressions: viewsFor(article),
     },
   };
 }
@@ -159,21 +167,25 @@ async function flush() {
     "odinEnabled",
     "odinHandle",
   ]);
-  if (!odinEnabled || buffer.size === 0) {
+  const me = normHandle(odinHandle);
+  if (!odinEnabled || !me || buffer.size === 0) {
+    if (!me && buffer.size > 0) {
+      console.debug("[ODIN] set your handle in Settings to capture your own posts");
+    }
     buffer.clear();
     return;
   }
-  // Mark the user's own posts (matched by handle) so the backend imports them for
-  // style + personal-performance analysis.
-  const me = normHandle(odinHandle);
-  const items = Array.from(buffer.values()).map((it) => ({
-    ...it,
-    is_self: !!me && normHandle(it.author_handle) === me,
-  }));
+  // X is output-only: we only send the user's OWN posts (matched by handle) so the
+  // backend can import them for style + personal-performance analysis. Everyone else's
+  // tweets are ignored — ODIN pulls event content from other sources.
+  const items = Array.from(buffer.values())
+    .filter((it) => normHandle(it.author_handle) === me)
+    .map((it) => ({ ...it, is_self: true }));
   buffer.clear();
+  if (items.length === 0) return;
   try {
     const res = await chrome.runtime.sendMessage({ type: "odin/collect", items });
-    console.debug(`[ODIN] handed off ${items.length} post(s) →`, res);
+    console.debug(`[ODIN] handed off ${items.length} own post(s) →`, res);
   } catch (err) {
     console.warn("[ODIN] failed to hand off batch:", err);
   }
