@@ -3,7 +3,7 @@
   "name": "ODIN X Collector",
   "version": "0.1.0",
   "description": "Collects X posts you view and sends them to your ODIN instance for analysis.",
-  "permissions": ["storage"],
+  "permissions": ["storage", "alarms", "tabs"],
   "host_permissions": [
     "https://x.com/*",
     "https://twitter.com/*",

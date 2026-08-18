@@ -122,9 +122,38 @@ class RSSAdapter(SourceAdapter):
             author=entry.get("author"),
             published_at=published_at,
             language=self._language,
+            media=_extract_images(entry),
             content_hash=compute_content_hash(self.source_type, key),
         )
 
     async def health_check(self) -> bool:
         result = await self.fetch()
         return result.status == "ok" and (result.not_modified or bool(result.items))
+
+
+def _extract_images(entry: dict[str, Any]) -> list[dict[str, str]]:
+    """Pull image URLs from common RSS/Atom media fields (best-effort, deduped)."""
+    urls: list[str] = []
+
+    def add(u: object) -> None:
+        if isinstance(u, str) and u.startswith("http") and u not in urls:
+            urls.append(u)
+
+    def is_image(d: dict[str, Any]) -> bool:
+        kind = str(d.get("medium") or d.get("type") or "")
+        u = str(d.get("url") or d.get("href") or "").lower()
+        return kind.startswith("image") or u.endswith((".jpg", ".jpeg", ".png", ".webp", ".gif"))
+
+    for m in entry.get("media_content") or []:
+        if isinstance(m, dict) and is_image(m):
+            add(m.get("url"))
+    for m in entry.get("media_thumbnail") or []:
+        if isinstance(m, dict):
+            add(m.get("url"))
+    for enc in entry.get("enclosures") or []:
+        if isinstance(enc, dict) and is_image(enc):
+            add(enc.get("href") or enc.get("url"))
+    for link in entry.get("links") or []:
+        if isinstance(link, dict) and link.get("rel") == "enclosure" and is_image(link):
+            add(link.get("href"))
+    return [{"type": "image", "url": u} for u in urls[:3]]

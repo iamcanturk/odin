@@ -156,6 +156,12 @@ async def get_event(
     sources: dict[uuid.UUID, EventSourceRef] = {}
     items: list[EventItem] = []
     for item, src in pairs:
+        # First image found across the event's items — offered as a post attachment.
+        if detail.suggested_image is None:
+            for m in item.media or []:
+                if isinstance(m, dict) and m.get("type") == "image" and m.get("url"):
+                    detail.suggested_image = str(m["url"])
+                    break
         sources.setdefault(
             src.id,
             EventSourceRef(id=src.id, name=src.name, type=src.type, confidence=src.confidence),
