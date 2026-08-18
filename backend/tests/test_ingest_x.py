@@ -11,16 +11,13 @@ from app.core.config import get_settings
 from app.core.db import get_session
 from app.main import create_app
 from app.models import ContentItem, Source
+from app.pipeline.ingest import process_pending
 from app.providers.embedding import HashEmbeddingProvider
 
 
 @pytest.fixture
 async def client(db_sessionmaker, monkeypatch):
     monkeypatch.setattr(get_settings(), "ingest_token", "secret", raising=False)
-    # Use the torch-free hash embedder so tests never require the `ml` extra.
-    monkeypatch.setattr(
-        "app.api.v1.ingest.get_embedding_provider", lambda: HashEmbeddingProvider(dim=384)
-    )
 
     async def _get_session():
         async with db_sessionmaker() as session:
@@ -79,3 +76,29 @@ async def test_creates_x_source_and_items(db_sessionmaker, client: httpx.AsyncCl
         assert src.enabled is False  # inbound-only
         count = await session.scalar(select(func.count(ContentItem.id)))
         assert count == 2
+
+
+async def test_inbound_returns_fast_then_worker_processes(
+    db_sessionmaker, client: httpx.AsyncClient
+) -> None:
+    # POST stores items WITHOUT embedding/clustering (event_id null) and returns fast.
+    resp = await client.post(
+        "/api/v1/ingest/x", json=_payload(), headers={"X-Ingest-Token": "secret"}
+    )
+    assert resp.status_code == 201
+    assert resp.json()["events_created"] == 0  # processing is deferred
+
+    async with db_sessionmaker() as session:
+        unassigned = await session.scalar(
+            select(func.count(ContentItem.id)).where(ContentItem.event_id.is_(None))
+        )
+        assert unassigned == 2
+
+        # The worker step processes pending items -> events assigned + scored.
+        stats = await process_pending(session, HashEmbeddingProvider(dim=384))
+        assert stats.items_created == 2
+        assert stats.events_created >= 1
+        remaining = await session.scalar(
+            select(func.count(ContentItem.id)).where(ContentItem.event_id.is_(None))
+        )
+        assert remaining == 0

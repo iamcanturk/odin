@@ -281,6 +281,38 @@ async def process_new_items(
     return affected
 
 
+async def process_pending(
+    session: AsyncSession,
+    embedder: EmbeddingProvider,
+    *,
+    llm: LLMProvider | None = None,
+    now: datetime | None = None,
+    limit: int = 300,
+) -> IngestStats:
+    """Process content items not yet assigned to an event (e.g. inbound extension items).
+
+    Runs the shared pipeline on unprocessed items, so POST /ingest/x can return
+    immediately and the worker catches up within a minute.
+    """
+    now = now or datetime.now(UTC)
+    stats = IngestStats()
+    pending = list(
+        (
+            await session.execute(
+                select(ContentItem).where(ContentItem.event_id.is_(None)).limit(limit)
+            )
+        ).scalars()
+    )
+    if not pending:
+        return stats
+    stats.items_created = len(pending)
+    affected = await process_new_items(session, pending, embedder, stats, llm=llm, now=now)
+    await emit_for_events(session, list(affected))
+    await session.commit()
+    log.info("process_pending.done", items=len(pending), events_created=stats.events_created)
+    return stats
+
+
 async def run_ingestion(
     session: AsyncSession,
     embedder: EmbeddingProvider,

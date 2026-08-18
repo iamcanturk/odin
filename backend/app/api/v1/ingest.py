@@ -6,8 +6,6 @@ Items flow through the same clustering/scoring pipeline as polled sources.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
-
 from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,9 +14,7 @@ from app.core.config import get_settings
 from app.core.db import get_session
 from app.models import ContentItem, Source
 from app.models.enums import Priority, SourceType
-from app.pipeline.ingest import IngestStats, process_new_items
 from app.pipeline.posts import import_user_post
-from app.providers.factory import get_embedding_provider
 from app.schemas.x import XIngestBatch, XIngestItem, XIngestResult
 from app.sources.base import compute_content_hash
 
@@ -104,15 +100,13 @@ async def ingest_x(
         if item.is_self:
             await import_user_post(session, item)
 
-    stats = IngestStats()
-    await process_new_items(
-        session, created, get_embedding_provider(), stats, llm=None, now=datetime.now(UTC)
-    )
+    # Store + return immediately; the ARQ worker embeds/clusters/scores these
+    # (event_id is null) within ~a minute, so the extension never blocks on the model.
     await session.commit()
 
     return XIngestResult(
         received=len(batch.items),
         created=len(created),
         duplicates=len(batch.items) - len(created),
-        events_created=stats.events_created,
+        events_created=0,
     )
