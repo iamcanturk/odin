@@ -2,6 +2,20 @@
 // to the configured ODIN inbound endpoint. State lives in chrome.storage (SW is ephemeral).
 
 const SEEN_CAP = 2000;
+// Mirrors the backend's MIN_SNAPSHOT_GAP: unchanged numbers are worth re-sending once
+// this much time has passed, because "still 42 likes at T+30m" is a real data point.
+const RESEND_GAP_MS = 4 * 60 * 1000;
+
+/** Identity of a reading — changes whenever any engagement number changes. */
+function metricSignature(item) {
+  const m = item.metrics || {};
+  return [m.likes, m.replies, m.reposts, m.bookmarks, m.impressions].join("|");
+}
+
+function pruneSigs(sigs) {
+  const entries = Object.entries(sigs).sort((a, b) => b[1].at - a[1].at);
+  return Object.fromEntries(entries.slice(0, SEEN_CAP));
+}
 
 async function getConfig() {
   return chrome.storage.local.get({
@@ -9,7 +23,7 @@ async function getConfig() {
     odinToken: "",
     odinEnabled: true,
     odinSent: 0,
-    odinSeen: [],
+    odinSigs: {},
     odinHandle: "",
   });
 }
@@ -33,8 +47,18 @@ async function handleCollect(items) {
     return { skipped: "unconfigured" };
   }
 
-  const seen = new Set(cfg.odinSeen);
-  const fresh = items.filter((it) => it.id && !seen.has(it.id));
+  // Dedupe on CONTENT + time, never on id alone. Re-sending the same tweet is the whole
+  // point of metric tracking — an id-only filter meant a tweet was uploaded once and its
+  // numbers could never be updated again, which silently froze every metric time series.
+  const now = Date.now();
+  const sigs = cfg.odinSigs || {};
+  const fresh = items.filter((it) => {
+    if (!it.id) return false;
+    const sig = metricSignature(it);
+    const prev = sigs[it.id];
+    if (prev && prev.sig === sig && now - prev.at < RESEND_GAP_MS) return false;
+    return true;
+  });
   if (fresh.length === 0) return { created: 0 };
 
   try {
@@ -52,10 +76,9 @@ async function handleCollect(items) {
     }
     const body = await res.json();
 
-    for (const it of fresh) seen.add(it.id);
-    const seenArr = Array.from(seen).slice(-SEEN_CAP);
+    for (const it of fresh) sigs[it.id] = { sig: metricSignature(it), at: now };
     await chrome.storage.local.set({
-      odinSeen: seenArr,
+      odinSigs: pruneSigs(sigs),
       odinSent: (cfg.odinSent || 0) + (body.created || 0),
     });
     await flashBadge(String(body.created || 0), "#37d39b");
