@@ -25,6 +25,7 @@ from app.pipeline.clustering import (
     score,
 )
 from app.pipeline.enrich import apply_enrichment
+from app.pipeline.notify import emit_for_events, emit_for_sources
 from app.pipeline.opportunity import apply_opportunity
 from app.pipeline.text import keywords
 from app.pipeline.topics import apply_topic_matching
@@ -301,7 +302,9 @@ async def run_ingestion(
         except Exception as exc:  # noqa: BLE001 - record and continue other sources
             stats.errors.append(f"{source.name}: {exc}")
 
-    await process_new_items(session, all_new, embedder, stats, llm=llm, now=now)
+    affected = await process_new_items(session, all_new, embedder, stats, llm=llm, now=now)
+    await emit_for_events(session, list(affected))
+    await emit_for_sources(session, sources)
     await session.commit()
 
     log.info(

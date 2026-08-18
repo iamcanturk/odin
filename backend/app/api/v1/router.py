@@ -8,6 +8,7 @@ from app.api.v1 import (
     evaluation,
     events,
     ingest,
+    notifications,
     posts,
     profile,
     sources,
@@ -24,3 +25,4 @@ api_router.include_router(profile.router)
 api_router.include_router(tester.router)
 api_router.include_router(posts.router)
 api_router.include_router(evaluation.router)
+api_router.include_router(notifications.router)
