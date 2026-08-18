@@ -51,7 +51,8 @@ async def test_events_list_shape(client: httpx.AsyncClient) -> None:
     assert "total" in body and isinstance(body["items"], list)
     if body["items"]:
         first = body["items"][0]
-        assert {"id", "title", "trend_score", "status"} <= set(first)
+        assert {"id", "title", "trend_score", "status", "source_types", "topics"} <= set(first)
+        assert isinstance(first["source_types"], list)
 
 
 async def test_event_detail_or_404(client: httpx.AsyncClient) -> None:
