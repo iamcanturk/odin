@@ -25,7 +25,9 @@ W_KEYWORD = 0.30
 W_TIME = 0.10
 W_URL = 0.05
 
-DEFAULT_THRESHOLD = 0.60
+# 0.60 merged genuinely different stories from the same outlet (e5 rates any two
+# "OpenAI announces X" headlines as similar). 0.72 keeps distinct stories apart.
+DEFAULT_THRESHOLD = 0.72
 DEFAULT_WINDOW = timedelta(hours=72)
 
 

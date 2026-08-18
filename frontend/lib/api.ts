@@ -57,6 +57,7 @@ export interface EventSummary {
   item_count: number;
   source_types: string[];
   topics: string[];
+  headlines: string[];
 }
 
 export interface EventList {
@@ -105,12 +106,14 @@ export function fetchEvents(params?: {
   status?: string;
   orderBy?: string;
   minTrend?: number;
+  q?: string;
 }): Promise<EventList> {
   const qs = new URLSearchParams();
   qs.set("limit", String(params?.limit ?? 50));
   if (params?.status) qs.set("status", params.status);
   if (params?.orderBy) qs.set("order_by", params.orderBy);
   if (params?.minTrend) qs.set("min_trend", String(params.minTrend));
+  if (params?.q?.trim()) qs.set("q", params.q.trim());
   return getJSON<EventList>(`/events?${qs.toString()}`);
 }
 
