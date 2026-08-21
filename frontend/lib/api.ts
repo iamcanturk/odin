@@ -768,6 +768,15 @@ export interface Slot {
   reason: string;
 }
 
+export interface PollResult {
+  source: string;
+  fetched: number;
+  errors: string[];
+}
+
+export const pollSource = (id: string) =>
+  send<PollResult>(`/sources/${id}/poll`, "POST", {});
+
 export const fetchSlot = () => getJSON<Slot>("/posts/slot");
 
 export const schedulePost = (id: string, body: { when?: string | null; auto?: boolean }) =>

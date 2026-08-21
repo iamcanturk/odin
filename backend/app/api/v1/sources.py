@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_session
 from app.models import ContentItem, Source
+from app.pipeline.ingest import IngestStats, poll_source
 from app.schemas.api import SourceCreate, SourceRead, SourceUpdate
 
 router = APIRouter(prefix="/sources", tags=["sources"])
@@ -38,6 +39,34 @@ class SourceItem(BaseModel):
 class DiscoverItem(SourceItem):
     source_name: str
     source_category: str | None = None
+
+
+class PollResult(BaseModel):
+    """What one on-demand fetch actually produced."""
+
+    source: str
+    fetched: int
+    errors: list[str] = []
+
+
+@router.post("/{source_id}/poll", response_model=PollResult)
+async def poll_one(
+    source_id: uuid.UUID, session: AsyncSession = Depends(get_session)
+) -> PollResult:
+    """Fetch a single source right now.
+
+    The 15-minute cron polls everything at once, which is useless when you want to see
+    what Reddit or Pinterest has *this second*. Items still go through the normal
+    clustering pass afterwards; this only pulls them in.
+    """
+    source = await session.get(Source, source_id)
+    if source is None:
+        raise HTTPException(status_code=404, detail="Source not found")
+
+    stats = IngestStats()
+    created = await poll_source(session, source, stats)
+    await session.commit()
+    return PollResult(source=source.name, fetched=len(created), errors=stats.errors)
 
 
 @router.get("/discover", response_model=list[DiscoverItem])

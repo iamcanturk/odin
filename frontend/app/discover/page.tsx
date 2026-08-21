@@ -3,7 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { fetchDiscover, fetchSources, type DiscoverItem } from "@/lib/api";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { fetchDiscover, fetchSources, pollSource, type DiscoverItem } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { EmptyState, ErrorState, LoadingState, PageHeader, Panel } from "@/components/ui";
 
@@ -65,14 +66,33 @@ function Card({ item }: { item: DiscoverItem }) {
 
 export default function DiscoverPage() {
   const { t } = useI18n();
+  const qc = useQueryClient();
   const [sourceId, setSourceId] = useState("");
+  const [category, setCategory] = useState("");
   const [withMedia, setWithMedia] = useState(false);
 
   const { data: sources } = useQuery({ queryKey: ["sources"], queryFn: fetchSources });
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ["discover", sourceId, withMedia],
-    queryFn: () => fetchDiscover({ sourceId: sourceId || undefined, withMedia }),
+    queryKey: ["discover", sourceId, category, withMedia],
+    queryFn: () =>
+      fetchDiscover({
+        sourceId: sourceId || undefined,
+        category: category || undefined,
+        withMedia,
+      }),
   });
+
+  // The 15-minute cron polls everything at once; this pulls one source on demand,
+  // which is what you want when you're looking at Reddit or Pinterest right now.
+  const poll = useMutation({
+    mutationFn: () => pollSource(sourceId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["discover"] }),
+  });
+
+  // Categories come from the sources themselves — no hardcoded list to drift.
+  const categories = Array.from(
+    new Set((sources ?? []).map((s) => s.category).filter((c): c is string => !!c)),
+  ).sort();
 
   const selectCls =
     "h-9 rounded-lg border border-border bg-panel-2 px-3 text-sm text-text " +
@@ -97,6 +117,15 @@ export default function DiscoverPage() {
                 </option>
               ))}
             </select>
+            {sourceId && (
+              <button
+                onClick={() => poll.mutate()}
+                disabled={poll.isPending}
+                className="rounded-lg border border-accent/60 bg-accent/10 px-2.5 py-1.5 text-xs text-accent hover:bg-accent/20 disabled:opacity-40 transition-colors"
+              >
+                {poll.isPending ? "…" : t("dc.fetch")}
+              </button>
+            )}
             <button
               onClick={() => setWithMedia((v) => !v)}
               className={`rounded-lg border px-2.5 py-1.5 text-xs transition-colors ${
@@ -110,6 +139,37 @@ export default function DiscoverPage() {
           </div>
         }
       />
+
+      <div className="flex flex-wrap items-center gap-1.5">
+        {["", ...categories].map((c) => (
+          <button
+            key={c || "all"}
+            onClick={() => {
+              setCategory(c);
+              setSourceId("");
+            }}
+            className={`rounded-full border px-3 py-1 text-xs transition-colors ${
+              category === c
+                ? "border-accent/60 bg-accent/10 text-accent"
+                : "border-border text-muted hover:text-text"
+            }`}
+          >
+            {c || t("dc.all")}
+          </button>
+        ))}
+      </div>
+
+      {poll.data && (
+        <p className="text-xs text-muted">
+          {poll.data.source}: {t("dc.fetched", { n: poll.data.fetched })}
+          {poll.data.errors.length > 0 && ` — ${poll.data.errors.join(", ")}`}
+        </p>
+      )}
+      {poll.error && (
+        <p className="text-xs text-warn">
+          {t("dc.fetchFail")}: {(poll.error as Error).message}
+        </p>
+      )}
 
       {isLoading ? (
         <LoadingState />
