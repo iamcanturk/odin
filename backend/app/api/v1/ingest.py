@@ -115,6 +115,7 @@ async def ingest_x_observed(
                 reposts=m.reposts if m else None,
                 bookmarks=m.bookmarks if m else None,
                 impressions=m.impressions if m else None,
+                is_reply=item.is_reply,
                 posted_at=item.created_at,
                 observed_at=now,
             )

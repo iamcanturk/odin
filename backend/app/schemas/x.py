@@ -25,6 +25,7 @@ class XIngestItem(BaseModel):
     lang: str | None = None
     metrics: XMetrics | None = None
     is_self: bool = False  # authored by the ODIN user (for personal post import)
+    is_reply: bool = False  # a reply is a conversation fragment, not standalone content
 
 
 class XIngestBatch(BaseModel):

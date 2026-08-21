@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createSource,
   deleteSource,
+  fetchSourceItems,
   fetchSources,
   updateSource,
   type Source,
@@ -28,31 +29,98 @@ function SourceRow({ s }: { s: Source }) {
     onSuccess: invalidate,
   });
   const remove = useMutation({ mutationFn: () => deleteSource(s.id), onSuccess: invalidate });
+  const [open, setOpen] = useState(false);
   const h = health(s, t);
 
   return (
-    <Panel className="p-3 flex items-center gap-3">
-      <button
-        onClick={() => toggle.mutate()}
-        className="size-2.5 rounded-full shrink-0"
-        style={{ background: s.enabled ? "var(--good)" : "var(--border)" }}
-        title={s.enabled ? "on" : "off"}
-      />
-      <div className="flex-1 min-w-0">
-        <span className="font-medium text-sm">{s.name}</span>
-        <span className="ml-2 text-[10px] font-mono uppercase text-muted">{s.type}</span>
-        {s.url && <div className="text-xs text-muted mt-0.5 truncate">{s.url}</div>}
+    <Panel className="p-3">
+      <div className="flex items-center gap-3">
+        <button
+          onClick={() => toggle.mutate()}
+          className="size-2.5 rounded-full shrink-0"
+          style={{ background: s.enabled ? "var(--good)" : "var(--border)" }}
+          title={s.enabled ? "on" : "off"}
+        />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-medium text-sm">{s.name}</span>
+            <span className="text-[10px] font-mono uppercase text-muted">{s.type}</span>
+            {s.category && (
+              <span className="rounded border border-border px-1.5 py-0.5 text-[10px] uppercase text-faint">
+                {s.category}
+              </span>
+            )}
+          </div>
+          {s.url && <div className="text-xs text-muted mt-0.5 truncate">{s.url}</div>}
+        </div>
+        <span className="font-mono text-[11px]" style={{ color: h.color }}>
+          {h.label}
+        </span>
+        <button
+          onClick={() => setOpen((v) => !v)}
+          className="rounded border border-border px-2 py-1 text-[11px] text-muted hover:text-text hover:border-accent/50 transition-colors"
+        >
+          {open ? t("src.hideItems") : t("src.showItems")}
+        </button>
+        <button
+          onClick={() => remove.mutate()}
+          className="text-muted hover:text-hot text-xs px-2 transition-colors"
+        >
+          {t("src.remove")}
+        </button>
       </div>
-      <span className="font-mono text-[11px]" style={{ color: h.color }}>
-        {h.label}
-      </span>
-      <button
-        onClick={() => remove.mutate()}
-        className="text-muted hover:text-hot text-xs px-2 transition-colors"
-      >
-        {t("src.remove")}
-      </button>
+
+      {open && <SourceItems id={s.id} />}
     </Panel>
+  );
+}
+
+/** What this source actually brought in — the page showed health but never content. */
+function SourceItems({ id }: { id: string }) {
+  const { t } = useI18n();
+  const { data, isLoading } = useQuery({
+    queryKey: ["sources", id, "items"],
+    queryFn: () => fetchSourceItems(id),
+  });
+
+  if (isLoading) return <p className="text-xs text-faint mt-3">…</p>;
+  if (!data || data.length === 0) {
+    return <p className="text-xs text-muted mt-3">{t("src.noItems")}</p>;
+  }
+  return (
+    <ul className="mt-3 flex flex-col gap-1.5 border-t border-border-soft pt-3">
+      {data.map((item) => (
+        <li key={item.id} className="flex items-start gap-2">
+          {item.image && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={item.image} alt="" className="size-8 rounded object-cover shrink-0" />
+          )}
+          <div className="min-w-0 flex-1">
+            <a
+              href={item.url ?? "#"}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-text hover:text-accent transition-colors line-clamp-2"
+            >
+              {item.title ?? item.url}
+            </a>
+            {item.published_at && (
+              <span className="text-[10px] text-faint font-mono">
+                {new Date(item.published_at).toLocaleDateString()}
+              </span>
+            )}
+          </div>
+          {item.event_id && (
+            <a
+              href={`/events/${item.event_id}`}
+              className="text-[10px] text-accent hover:underline shrink-0"
+            >
+              →
+            </a>
+          )}
+        </li>
+      ))}
+    </ul>
   );
 }
 

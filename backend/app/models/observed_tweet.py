@@ -11,7 +11,16 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import BigInteger, DateTime, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    DateTime,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base
@@ -32,6 +41,9 @@ class ObservedTweet(Base):
     text: Mapped[str] = mapped_column(Text, nullable=False)
     url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     lang: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    # Replies are conversation fragments: "Emin misin?" says nothing on its own and is
+    # never a thing to react to, so they're excluded from the pulse.
+    is_reply: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     likes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     replies: Mapped[int | None] = mapped_column(Integer, nullable=True)

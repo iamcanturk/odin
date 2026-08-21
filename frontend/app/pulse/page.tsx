@@ -137,9 +137,10 @@ function Row({ t }: { t: PulseTweet }) {
 export default function PulsePage() {
   const { t } = useI18n();
   const [tier, setTier] = useState<"cold" | "warm" | "hot">("cold");
+  const [relevantOnly, setRelevantOnly] = useState(false);
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ["pulse", tier],
-    queryFn: () => fetchPulse(tier),
+    queryKey: ["pulse", tier, relevantOnly],
+    queryFn: () => fetchPulse({ minTier: tier, relevantOnly }),
     refetchInterval: 60_000,
   });
 
@@ -166,6 +167,16 @@ export default function PulsePage() {
                 {t(tv === "cold" ? "pl.tier.all" : `pl.tier.${tv}`)}
               </button>
             ))}
+            <button
+              onClick={() => setRelevantOnly((v) => !v)}
+              className={`rounded-lg border px-2.5 py-1.5 text-xs transition-colors ${
+                relevantOnly
+                  ? "border-good/60 text-good bg-good/10"
+                  : "border-border text-muted hover:text-text"
+              }`}
+            >
+              {t("pl.relevantOnly")}
+            </button>
           </div>
         }
       />

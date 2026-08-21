@@ -7,6 +7,7 @@ and ranked. Regeneration APPENDS — old candidates are kept so nothing is lost.
 
 from __future__ import annotations
 
+import asyncio
 import re
 from dataclasses import dataclass
 
@@ -221,14 +222,21 @@ async def generate_candidates(
     max_tokens = _max_tokens(length)
     tf = min(1.0, max(0.0, event.trend_score / 100.0))
     pf = min(1.0, max(0.0, event.personal_relevance / 100.0))
-    drafts: list[CandidateDraft] = []
-    for angle, (instruction, novelty, risk) in selected.items():
-        raw = await llm.generate(
-            _prompt(event, item_texts, instruction),
-            system=system,
-            temperature=0.8,
-            max_tokens=max_tokens,
+    # Angles are independent, so issue them concurrently rather than stacking round-trips.
+    raws = await asyncio.gather(
+        *(
+            llm.generate(
+                _prompt(event, item_texts, instruction),
+                system=system,
+                temperature=0.8,
+                max_tokens=max_tokens,
+            )
+            for instruction, _, _ in selected.values()
         )
+    )
+
+    drafts: list[CandidateDraft] = []
+    for (angle, (_, novelty, risk)), raw in zip(selected.items(), raws, strict=True):
         text = _sanitize(raw)
         xsim = simulate(text, trend_fit=tf, personal_fit=pf).sim_score
         drafts.append(
@@ -283,12 +291,16 @@ REPLY_ANGLES: dict[str, tuple[str, float, float]] = {
 
 _REPLY_SYSTEM = (
     "You write replies on X, in the author's own voice. A reply enters someone else's "
-    "conversation, so it must add value on its own terms. Rules: (1) Never open with "
-    "flattery ('Great post', 'This!', 'So true'). (2) Be specific — a reply that could be "
-    "posted under any tweet is worthless. (3) Stay respectful even when disagreeing; the "
-    "goal is a conversation, not a dunk. (4) Do NOT use em dashes or en dashes (— –), no "
-    "hashtags, no emoji unless the author's voice uses them. (5) Keep it under 280 "
-    "characters. Return ONLY the reply text, no preamble or quotes."
+    "conversation, so it must earn its place. Rules: "
+    "(1) REFERENCE SOMETHING SPECIFIC from their post — a claim, a number, a word they "
+    "used. A reply that could sit under any tweet is worthless. "
+    "(2) Never open with flattery ('Great post', 'This!', 'So true', 'Katılıyorum'). "
+    "(3) Say ONE thing. Do not stack multiple points or end with a generic question. "
+    "(4) If you have nothing concrete to add, reply with exactly: SKIP. Saying nothing is "
+    "better than posting filler. "
+    "(5) Stay respectful when disagreeing; the goal is a conversation, not a dunk. "
+    "(6) No em dashes or en dashes (— –), no hashtags, no emoji unless the author uses them. "
+    "(7) Under 280 characters. Return ONLY the reply text, no preamble or quotes."
 )
 
 
@@ -320,8 +332,7 @@ async def generate_replies(
     if not selected:
         selected = REPLY_ANGLES
 
-    drafts: list[CandidateDraft] = []
-    for angle, (instruction, novelty, risk) in selected.items():
+    def _prompt_for(instruction: str) -> str:
         parts = []
         if parent_handle:
             parts.append(f"You are replying to @{parent_handle.lstrip('@')}.")
@@ -329,11 +340,24 @@ async def generate_replies(
         if thread_context:
             parts.append(f"Earlier in the thread:\n{thread_context}")
         parts.append(f"Task: {instruction}\nWrite the reply:")
+        return "\n\n".join(parts)
 
-        raw = await llm.generate(
-            "\n\n".join(parts), system=system, temperature=0.8, max_tokens=160
+    # The angles are independent, so run them concurrently. Sequentially this was four
+    # round-trips stacked end to end, which is why drafting a reply felt slow.
+    raws = await asyncio.gather(
+        *(
+            llm.generate(_prompt_for(instruction), system=system, temperature=0.8, max_tokens=160)
+            for instruction, _, _ in selected.values()
         )
+    )
+
+    drafts: list[CandidateDraft] = []
+    for (angle, (_, novelty, risk)), raw in zip(selected.items(), raws, strict=True):
         text = _sanitize(raw)
+        # The model is told to answer SKIP when it has nothing concrete; honour that rather
+        # than presenting filler as a suggestion.
+        if not text or text.strip().upper().startswith("SKIP"):
+            continue
         xsim = simulate(text).sim_score
         drafts.append(
             CandidateDraft(

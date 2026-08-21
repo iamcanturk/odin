@@ -342,6 +342,18 @@ export interface Source {
   failure_count: number;
 }
 
+export interface SourceItem {
+  id: string;
+  title: string | null;
+  url: string | null;
+  published_at: string | null;
+  image: string | null;
+  event_id: string | null;
+}
+
+export const fetchSourceItems = (id: string) =>
+  getJSON<SourceItem[]>(`/sources/${id}/items`);
+
 export const fetchSources = () => getJSON<Source[]>("/sources");
 export const createSource = (body: {
   name: string;
@@ -508,8 +520,16 @@ export interface PulseSummary {
   items: PulseTweet[];
 }
 
-export const fetchPulse = (minTier?: "cold" | "warm" | "hot") =>
-  getJSON<PulseSummary>(`/pulse${minTier && minTier !== "cold" ? `?min_tier=${minTier}` : ""}`);
+export const fetchPulse = (opts?: {
+  minTier?: "cold" | "warm" | "hot";
+  relevantOnly?: boolean;
+}) => {
+  const qs = new URLSearchParams();
+  if (opts?.minTier && opts.minTier !== "cold") qs.set("min_tier", opts.minTier);
+  if (opts?.relevantOnly) qs.set("relevant_only", "true");
+  const q = qs.toString();
+  return getJSON<PulseSummary>(`/pulse${q ? `?${q}` : ""}`);
+};
 
 // ---- Composer: generate posts about any topic ----
 

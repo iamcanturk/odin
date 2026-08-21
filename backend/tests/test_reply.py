@@ -73,12 +73,31 @@ async def test_parent_and_thread_context_reach_the_prompt(db_sessionmaker) -> No
     assert any("flattery" in s.lower() for s in llm.systems)
 
 
-async def test_reply_endpoint(client: httpx.AsyncClient) -> None:
+async def test_reply_endpoint(client: httpx.AsyncClient, monkeypatch) -> None:
+    # Stub the provider: without this the test hits the real API whenever a key is
+    # configured, which makes it slow, costly and dependent on the model's judgement.
+    import app.api.v1.compose as compose_api
+
+    monkeypatch.setattr(compose_api, "get_llm_provider", lambda: _CapturingLLM())
+
     resp = await client.post(
         "/api/v1/compose/reply",
-        json={"text": "Some tweet worth replying to", "author_handle": "@x", "kind": "question"},
+        json={"text": "Kubernetes is overkill for most teams", "author_handle": "@x",
+              "kind": "question"},
     )
     assert resp.status_code == 200
     body = resp.json()
     assert len(body) == 1
     assert body[0]["angle"] == "question"
+
+
+async def test_a_reply_with_nothing_to_add_is_dropped(db_sessionmaker) -> None:
+    """The prompt tells the model to answer SKIP rather than pad; honour that."""
+
+    class _SkipLLM(LLMProvider):
+        async def generate(self, prompt, *, system=None, temperature=0.7, max_tokens=512) -> str:
+            return "SKIP"
+
+    async with db_sessionmaker() as session:
+        drafts = await generate_replies(session, "A content-free tweet", _SkipLLM())
+    assert drafts == []

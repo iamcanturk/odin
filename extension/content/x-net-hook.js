@@ -48,6 +48,8 @@
       url: handle ? `https://x.com/${handle}/status/${id}` : null,
       created_at: legacy.created_at ? new Date(legacy.created_at).toISOString() : null,
       lang: legacy.lang || null,
+      // A reply is part of someone else's conversation, not standalone content.
+      is_reply: Boolean(legacy.in_reply_to_status_id_str || legacy.in_reply_to_user_id_str),
       metrics: {
         likes: toInt(legacy.favorite_count),
         replies: toInt(legacy.reply_count),

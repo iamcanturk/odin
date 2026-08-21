@@ -147,6 +147,19 @@ const M: Record<string, { tr: string; en: string }> = {
   "src.failing": { tr: "hata", en: "failing" },
   "src.never": { tr: "hiç çekilmedi", en: "never polled" },
   "src.remove": { tr: "kaldır", en: "remove" },
+  "src.showItems": { tr: "İçerikleri gör", en: "Show items" },
+  "src.hideItems": { tr: "Gizle", en: "Hide" },
+  "src.noItems": { tr: "Bu kaynaktan henüz içerik yok.", en: "Nothing from this source yet." },
+  "pl.relevantOnly": { tr: "Sadece konularım", en: "My topics only" },
+  "ln.how": { tr: "Bu sayfa ne yapıyor?", en: "What is this page?" },
+  "ln.howBody": {
+    tr: "Bir taslağı onayladığında ODIN o an ne kadar beğeni alacağını tahmin eder ve bu tahmini değiştirilemez şekilde kaydeder. Tweeti paylaşıp gerçek sayılar geldiğinde ikisini karşılaştırır. MAE ortalama sapma, RMSE büyük hataları daha ağır cezalandırır, Precision@3 ise 'en iyi 3 tahminim gerçekten en iyi 3 çıktı mı' sorusunu ölçer. Kalibrasyon katsayısı bu hatayı bir sonraki tahmine otomatik uygular; yani model kendini düzeltir.",
+    en: "When you approve a draft, ODIN predicts how many likes it will get and stores that prediction immutably. Once you post it and real numbers arrive, it compares the two. MAE is the average miss, RMSE punishes large misses harder, and Precision@3 asks whether my top 3 predictions really were the top 3. The calibration factor feeds that error back into the next prediction, so the model corrects itself.",
+  },
+  "ln.needData": {
+    tr: "Sayılar ancak paylaşılmış ve metrikleri gelmiş gönderiler için oluşur.",
+    en: "Numbers only appear for posts that were published and have metrics.",
+  },
   "src.empty": { tr: "Henüz kaynak yok. İlk RSS'i yukarıdan ekle.", en: "No sources yet. Add your first RSS above." },
 
   // performance (profile)
