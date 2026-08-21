@@ -12,7 +12,8 @@
     "https://x.com/*",
     "https://twitter.com/*",
     "http://localhost/*",
-    "https://odin.iamcanturk.dev/*"
+    "https://odin.iamcanturk.dev/*",
+    "https://www.reddit.com/*"
   ],
   "background": {
     "service_worker": "service-worker.js",

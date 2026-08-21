@@ -86,6 +86,27 @@ DEFAULT_SOURCES = [
     {"name": "Cursor Changelog", "type": SourceType.RSS,
      "url": "https://www.cursor.com/changelog/rss.xml", "category": "devtools",
      "priority": Priority.MEDIUM, "confidence": 0.85},
+    # Reddit — blocked for datacenter IPs, so the extension relays these from the
+    # browser's residential IP via POST /ingest/feed. type=rss so the same parser applies.
+    {"name": "Reddit r/programming", "type": SourceType.RSS,
+     "url": "https://www.reddit.com/r/programming/.rss", "category": "technology",
+     "priority": Priority.MEDIUM, "confidence": 0.7, "enabled": False},
+    {"name": "Reddit r/devops", "type": SourceType.RSS,
+     "url": "https://www.reddit.com/r/devops/.rss", "category": "devtools",
+     "priority": Priority.MEDIUM, "confidence": 0.7, "enabled": False},
+    {"name": "Reddit r/selfhosted", "type": SourceType.RSS,
+     "url": "https://www.reddit.com/r/selfhosted/.rss", "category": "devtools",
+     "priority": Priority.MEDIUM, "confidence": 0.7, "enabled": False},
+    {"name": "Reddit r/netsec", "type": SourceType.RSS,
+     "url": "https://www.reddit.com/r/netsec/.rss", "category": "security",
+     "priority": Priority.HIGH, "confidence": 0.8, "enabled": False},
+    {"name": "Reddit r/LocalLLaMA", "type": SourceType.RSS,
+     "url": "https://www.reddit.com/r/LocalLLaMA/.rss", "category": "ai",
+     "priority": Priority.HIGH, "confidence": 0.75, "enabled": False},
+    # Pinterest — visual references for post imagery.
+    {"name": "Pinterest Trends", "type": SourceType.RSS,
+     "url": "https://www.pinterest.com/pinterest/official-news.rss", "category": "visual",
+     "priority": Priority.LOW, "confidence": 0.4},
     # Outages / platform status
     {"name": "Google Search Status", "type": SourceType.RSS,
      "url": "https://status.search.google.com/en/feed.atom", "category": "status",

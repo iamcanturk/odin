@@ -171,6 +171,7 @@ const REFRESH_MINUTES = 5;
 
 function scheduleAlarm() {
   chrome.alarms.create(REFRESH_ALARM, { periodInMinutes: REFRESH_MINUTES });
+  chrome.alarms.create(RELAY_ALARM, { periodInMinutes: RELAY_MINUTES });
 }
 chrome.runtime.onInstalled.addListener(scheduleAlarm);
 chrome.runtime.onStartup.addListener(scheduleAlarm);
@@ -230,6 +231,49 @@ async function sampleViaBackgroundTab(handle) {
   console.debug("[ODIN] sampled metrics via a background tab");
 }
 
+// ---- Feed relay ----
+// Reddit answers 403 (or an empty body) to our server's datacenter IP but serves normally
+// from a residential one. The browser IS residential, so we fetch those feeds here and
+// post the raw body to ODIN, which parses it exactly like any other RSS source.
+
+const RELAY_ALARM = "odin-relay";
+const RELAY_MINUTES = 60;
+const RELAY_FEEDS = [
+  ["Reddit r/programming", "https://www.reddit.com/r/programming/.rss"],
+  ["Reddit r/devops", "https://www.reddit.com/r/devops/.rss"],
+  ["Reddit r/selfhosted", "https://www.reddit.com/r/selfhosted/.rss"],
+  ["Reddit r/netsec", "https://www.reddit.com/r/netsec/.rss"],
+  ["Reddit r/LocalLLaMA", "https://www.reddit.com/r/LocalLLaMA/.rss"],
+];
+
+async function relayFeeds() {
+  const cfg = await getConfig();
+  if (!cfg.odinEnabled || !cfg.odinToken || !cfg.odinEndpoint) return { skipped: true };
+  let relayed = 0;
+  let created = 0;
+  for (const [name, url] of RELAY_FEEDS) {
+    try {
+      const res = await fetch(url, { headers: { Accept: "application/atom+xml, text/xml" } });
+      if (!res.ok) continue;
+      const body = await res.text();
+      if (body.length < 200) continue; // empty/blocked response
+      const post = await fetch(`${cfg.odinEndpoint}/ingest/feed`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Ingest-Token": cfg.odinToken },
+        body: JSON.stringify({ source_name: name, body }),
+      });
+      if (!post.ok) continue;
+      const out = await post.json();
+      relayed += 1;
+      created += out.created || 0;
+    } catch {
+      // one bad feed must not stop the rest
+    }
+  }
+  console.debug(`[ODIN] relayed ${relayed} feed(s), ${created} new item(s)`);
+  return { relayed, created };
+}
+
 // A tweet ODIN has never seen can't be "due" — it isn't in the database yet. So on top of
 // the due-based sampling we sweep the profile periodically to DISCOVER new posts.
 const DISCOVERY_INTERVAL_MS = 30 * 60 * 1000;
@@ -240,6 +284,10 @@ async function isDiscoveryDue() {
 }
 
 chrome.alarms.onAlarm.addListener(async (alarm) => {
+  if (alarm.name === RELAY_ALARM) {
+    await relayFeeds();
+    return;
+  }
   if (alarm.name !== REFRESH_ALARM) return;
   const cfg = await getConfig();
   if (!cfg.odinEnabled) return;
@@ -270,10 +318,12 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       const cfg = await getConfig();
       await chrome.storage.local.set({ odinLastSweep: Date.now() });
       if (await pingOpenTabs()) {
+        await relayFeeds();
         sendResponse({ ok: true, via: "open tab" });
         return;
       }
       await sampleViaBackgroundTab(normalizeHandle(cfg.odinHandle));
+      await relayFeeds();
       sendResponse({ ok: true, via: "background tab" });
     })();
     return true; // async response

@@ -45,6 +45,13 @@ class XStyleSampleBatch(BaseModel):
     items: list[XIngestItem] = Field(default_factory=list)
 
 
+class FeedRelay(BaseModel):
+    """A feed body the browser fetched on our behalf (for IP-blocked sources)."""
+
+    source_name: str = Field(min_length=1, max_length=200)
+    body: str = Field(min_length=1, max_length=5_000_000)
+
+
 class XObservedBatch(BaseModel):
     """Tweets seen while browsing — corpus for X Pulse, not events."""
 

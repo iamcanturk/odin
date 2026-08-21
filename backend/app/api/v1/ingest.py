@@ -16,16 +16,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.db import get_session
-from app.models import ObservedTweet, ProfileSnapshot, StyleReference
+from app.models import ContentItem, ObservedTweet, ProfileSnapshot, Source, StyleReference
+from app.pipeline.ingest import _existing_hashes
 from app.pipeline.posts import import_user_post
 from app.pipeline.watch import posts_due
 from app.schemas.x import (
+    FeedRelay,
     XIngestBatch,
     XIngestResult,
     XObservedBatch,
     XProfileIngest,
     XStyleSampleBatch,
 )
+from app.sources.rss import RSSAdapter, parse_feed
 
 router = APIRouter(prefix="/ingest", tags=["ingest"])
 
@@ -112,6 +115,65 @@ async def ingest_x_observed(
         stored += 1
     await session.commit()
     return {"received": len(batch.items), "stored": stored}
+
+
+@router.post("/feed", status_code=201)
+async def ingest_feed(
+    payload: FeedRelay,
+    session: AsyncSession = Depends(get_session),
+    x_ingest_token: str | None = Header(default=None, alias="X-Ingest-Token"),
+) -> dict[str, int | str]:
+    """Relay a feed the BROWSER fetched, for sources that block our server.
+
+    Reddit returns 403/empty to datacenter IPs but serves fine from a residential one, so
+    the extension fetches the XML and posts it here. The body then goes through exactly
+    the same RSS parsing as a normally-polled feed — same normalisation, same image
+    extraction, same dedup.
+    """
+    _verify_token(x_ingest_token)
+
+    source = (
+        await session.execute(select(Source).where(Source.name == payload.source_name))
+    ).scalar_one_or_none()
+    if source is None:
+        raise HTTPException(status_code=404, detail=f"No source named {payload.source_name!r}")
+
+    entries, feed_language = parse_feed(payload.body.encode("utf-8"))
+    adapter = RSSAdapter(source.url or "", name=source.name)
+    adapter._language = feed_language  # noqa: SLF001 - reuse the adapter's normalisation
+
+    normalised = [adapter.normalize(e) for e in entries]
+    known = await _existing_hashes(session, [n.content_hash for n in normalised])
+
+    created = 0
+    for norm in normalised:
+        if norm.content_hash in known:
+            continue
+        known.add(norm.content_hash)
+        session.add(
+            ContentItem(
+                source_id=source.id,
+                source_item_id=norm.source_item_id,
+                url=norm.url,
+                content_hash=norm.content_hash,
+                title=norm.title,
+                text=norm.text,
+                author=norm.author,
+                published_at=norm.published_at,
+                language=norm.language,
+                media=norm.media,
+                engagement=norm.engagement,
+                item_metadata=norm.metadata,
+            )
+        )
+        created += 1
+
+    source.last_polled_at = datetime.now(UTC)
+    if created or normalised:
+        source.last_success_at = source.last_polled_at
+        source.failure_count = 0
+    await session.commit()
+    return {"source": source.name, "received": len(normalised), "created": created}
 
 
 @router.get("/x/watch")
