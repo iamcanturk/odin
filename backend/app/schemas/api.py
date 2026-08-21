@@ -51,6 +51,8 @@ class EventSummary(ORMModel):
     source_types: list[str] = Field(default_factory=list)
     topics: list[str] = Field(default_factory=list)
     headlines: list[str] = Field(default_factory=list)
+    # First image found across the event's items, so the feed isn't a wall of text.
+    image: str | None = None
 
 
 class EventItem(ORMModel):

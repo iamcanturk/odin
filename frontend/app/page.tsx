@@ -12,16 +12,15 @@ import {
   fetchSources,
   fetchTopics,
   pollSource,
-  type DiscoverItem,
   type EventList,
   type EventSummary,
   type ImportedTweet,
-  type PulseTweet,
 } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
-import { EventCard } from "@/components/EventCard";
 import { CadenceStrip } from "@/components/CadenceStrip";
-import { Composer, type ComposerSeed } from "@/components/Composer";
+import { FeedItemModal, type FeedItem } from "@/components/FeedItemModal";
+import { Modal } from "@/components/Modal";
+import { Composer } from "@/components/Composer";
 import { EmptyState, ErrorState, LoadingState, Panel } from "@/components/ui";
 
 // Ignore near-dead events — they add noise without opportunity.
@@ -30,10 +29,10 @@ const MIN_TREND = 15;
 /**
  * The one screen you start on.
  *
- * Finding something, writing about it and queueing it are one continuous act, so
- * they're one surface: the stream on the left, the composer pinned on the right.
- * Clicking any card loads its subject into the composer instead of navigating away,
- * which is the whole point — you never lose the thing you were looking at.
+ * The feed gets the full width: images, summaries and merged headlines need room,
+ * and a pinned side column was taking a third of it to show an empty textarea.
+ * Clicking a card opens it in a modal instead — full content, then "Bunu seç" swaps
+ * that same modal into a two-pane compose view so the source stays beside the draft.
  *
  * Four streams, because "what's worth posting about" has four honest answers:
  * clustered events, the raw incoming feed (where the images live), what's moving on
@@ -48,10 +47,13 @@ const STREAMS: { key: Stream; labelKey: string }[] = [
   { key: "recycle", labelKey: "fl.recycle" },
 ];
 
+const GRID = "grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4";
+
 export default function FeedPage() {
   const { t } = useI18n();
   const [stream, setStream] = useState<Stream>("events");
-  const [seed, setSeed] = useState<ComposerSeed | null>(null);
+  const [picked, setPicked] = useState<FeedItem | null>(null);
+  const [blank, setBlank] = useState(false);
 
   return (
     <div className="flex flex-col gap-4">
@@ -71,33 +73,138 @@ export default function FeedPage() {
             {t(s.labelKey)}
           </button>
         ))}
+        {/* Writing without a source still has to be one click away. */}
+        <button
+          onClick={() => setBlank(true)}
+          className="ml-auto rounded-lg border border-accent/60 bg-accent/10 px-3 py-1.5 text-xs text-accent hover:bg-accent/20 transition-colors"
+        >
+          + {t("fl.blank")}
+        </button>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px] items-start">
-        <div className="min-w-0">
-          {stream === "events" && <EventStream onPick={setSeed} />}
-          {stream === "raw" && <RawStream onPick={setSeed} />}
-          {stream === "pulse" && <PulseStream onPick={setSeed} />}
-          {stream === "recycle" && <RecycleStream onPick={setSeed} />}
-        </div>
+      {stream === "events" && <EventStream onPick={setPicked} />}
+      {stream === "raw" && <RawStream onPick={setPicked} />}
+      {stream === "pulse" && <PulseStream onPick={setPicked} />}
+      {stream === "recycle" && <RecycleStream onPick={setPicked} />}
 
-        {/* Sticky so the composer stays put however far you scroll the stream.
-            Keyed on the seed so clicking a new card resets the draft cleanly. */}
-        <div className="lg:sticky lg:top-4">
-          <Composer key={seed?.topic ?? "blank"} seed={seed} />
+      <FeedItemModal item={picked} onClose={() => setPicked(null)} />
+
+      <Modal open={blank} onClose={() => setBlank(false)}>
+        <div className="p-4">
+          <Composer seed={null} />
         </div>
-      </div>
+      </Modal>
     </div>
   );
 }
 
-type Picker = { onPick: (seed: ComposerSeed) => void };
+type Picker = { onPick: (item: FeedItem) => void };
 
-function StreamHint({ children }: { children: React.ReactNode }) {
-  return <p className="text-[11px] text-faint mb-3">{children}</p>;
+/** Shared card shell so every stream reads the same way. */
+function Card({
+  item,
+  onPick,
+  onDismiss,
+  accent,
+  children,
+}: {
+  item: FeedItem;
+  onPick: (item: FeedItem) => void;
+  onDismiss?: () => void;
+  accent?: boolean;
+  children?: React.ReactNode;
+}) {
+  const { t } = useI18n();
+  return (
+    <Panel
+      onClick={() => onPick(item)}
+      className={`group relative overflow-hidden flex flex-col cursor-pointer hover:border-accent/50 transition-colors ${
+        accent ? "border-l-2 border-l-good" : ""
+      }`}
+    >
+      {onDismiss && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onDismiss();
+          }}
+          className="absolute top-2 right-2 z-10 rounded-md px-1.5 text-faint hover:text-hot hover:bg-panel-2/90 transition-colors"
+          title={t("ev.dismiss")}
+          aria-label={t("ev.dismiss")}
+        >
+          ×
+        </button>
+      )}
+
+      {item.image && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={item.image} alt="" className="w-full h-40 object-cover" loading="lazy" />
+      )}
+
+      <div className="p-3.5 flex flex-col gap-2 flex-1">
+        <div className="flex flex-wrap items-center gap-1.5 pr-5">
+          {item.sourceLabel && (
+            <span className="text-[10px] font-mono uppercase tracking-widest text-accent truncate max-w-[45%]">
+              {item.sourceLabel}
+            </span>
+          )}
+          {item.category && (
+            <span className="rounded border border-border px-1.5 py-0.5 text-[10px] uppercase text-faint">
+              {item.category}
+            </span>
+          )}
+          {item.chips?.slice(0, 2).map((c) => (
+            <span
+              key={c}
+              className="rounded-full border border-good/40 px-1.5 py-0.5 text-[10px] text-good"
+            >
+              {c}
+            </span>
+          ))}
+          {item.meta && <span className="text-[10px] text-faint ml-auto">{item.meta}</span>}
+        </div>
+
+        <h3 className="text-[15px] font-medium text-text leading-snug line-clamp-2 group-hover:text-accent transition-colors">
+          {item.title}
+        </h3>
+
+        {/* The summary is the point — it was clamped to nothing in the old layout. */}
+        {item.body && <p className="text-[13px] text-muted line-clamp-4">{item.body}</p>}
+
+        {!!item.extras?.length && (
+          <ul className="flex flex-col gap-0.5">
+            {item.extras.slice(0, 2).map((h) => (
+              <li key={h} className="text-[11px] text-faint truncate">
+                ↳ {h}
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {children && <div className="mt-auto pt-1">{children}</div>}
+      </div>
+    </Panel>
+  );
 }
 
-/** Clustered, scored events — the original console, now a stream among others. */
+function Bar({ label, value }: { label: string; value: number }) {
+  const color = value >= 66 ? "bg-hot" : value >= 33 ? "bg-warn" : "bg-accent";
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-[9px] uppercase tracking-widest text-muted w-11 shrink-0">
+        {label}
+      </span>
+      <div className="h-1 flex-1 rounded-full bg-panel-2 overflow-hidden">
+        <div className={`h-full rounded-full ${color}`} style={{ width: `${value}%` }} />
+      </div>
+      <span className="font-mono text-[10px] tabular-nums w-5 text-right">
+        {value.toFixed(0)}
+      </span>
+    </div>
+  );
+}
+
+/** Clustered, scored events. */
 function EventStream({ onPick }: Picker) {
   const { t } = useI18n();
   const qc = useQueryClient();
@@ -139,14 +246,27 @@ function EventStream({ onPick }: Picker) {
   });
 
   const events = data?.items ?? [];
-  // Only offer categories that actually exist in the current result set.
   const categories = Array.from(
     new Set(events.map((e) => e.category).filter((c): c is string => !!c)),
   ).sort();
   const noTopics = topics !== undefined && topics.length === 0;
 
-  const pick = (e: EventSummary) =>
-    onPick({ topic: e.summary || e.title, eventId: e.id, source: e.title });
+  const toItem = (e: EventSummary): FeedItem => ({
+    id: e.id,
+    title: e.title_local || e.title,
+    body: e.summary,
+    image: e.image,
+    category: e.category,
+    chips: e.topics,
+    extras: e.headlines.filter((h) => h !== e.title),
+    meta: `${e.source_count} · ${e.item_count}`,
+    scores: [
+      { label: t("ev.trend"), value: e.trend_score },
+      { label: t("pn.opp"), value: e.opportunity_score },
+    ],
+    eventId: e.id,
+    seedText: e.summary || e.title,
+  });
 
   return (
     <div className="flex flex-col gap-3">
@@ -155,7 +275,7 @@ function EventStream({ onPick }: Picker) {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder={t("dash.search")}
-          className="h-9 flex-1 min-w-[180px] rounded-lg border border-border bg-panel-2 px-3 text-sm outline-none focus:border-accent/60 transition-colors"
+          className="h-9 flex-1 min-w-[200px] max-w-md rounded-lg border border-border bg-panel-2 px-3 text-sm outline-none focus:border-accent/60 transition-colors"
         />
         {["", ...categories].map((c) => (
           <button
@@ -190,15 +310,20 @@ function EventStream({ onPick }: Picker) {
       ) : events.length === 0 ? (
         <EmptyState label={t("dash.empty")} />
       ) : (
-        <div className="grid gap-2.5 sm:grid-cols-2">
-          {events.map((e, i) => (
-            <EventCard
+        <div className={GRID}>
+          {events.map((e) => (
+            <Card
               key={e.id}
-              event={e}
-              rank={i + 1}
-              onSelect={pick}
-              onDismiss={(id) => dismiss.mutate(id)}
-            />
+              item={toItem(e)}
+              onPick={onPick}
+              onDismiss={() => dismiss.mutate(e.id)}
+              accent={e.topics.length > 0}
+            >
+              <div className="flex flex-col gap-1">
+                <Bar label={t("ev.trend")} value={e.trend_score} />
+                <Bar label={t("pn.opp")} value={e.opportunity_score} />
+              </div>
+            </Card>
           ))}
         </div>
       )}
@@ -301,57 +426,27 @@ function RawStream({ onPick }: Picker) {
       ) : !data || data.length === 0 ? (
         <EmptyState label={t("dc.empty")} />
       ) : (
-        <div className="grid gap-2.5 sm:grid-cols-2">
-          {data.map((item) => (
-            <RawCard key={item.id} item={item} onPick={onPick} />
+        <div className={GRID}>
+          {data.map((it) => (
+            <Card
+              key={it.id}
+              onPick={onPick}
+              item={{
+                id: it.id,
+                title: it.title ?? it.url ?? "",
+                image: it.image,
+                url: it.url,
+                sourceLabel: it.source_name,
+                category: it.source_category,
+                meta: it.published_at ? new Date(it.published_at).toLocaleDateString() : null,
+                eventId: it.event_id,
+                seedText: it.title ?? "",
+              }}
+            />
           ))}
         </div>
       )}
     </div>
-  );
-}
-
-function RawCard({ item, onPick }: { item: DiscoverItem } & Picker) {
-  return (
-    <Panel
-      onClick={() =>
-        onPick({
-          topic: item.title ?? item.url ?? "",
-          eventId: item.event_id ?? undefined,
-          source: item.source_name,
-        })
-      }
-      className="overflow-hidden flex flex-col cursor-pointer hover:border-accent/50 transition-colors"
-    >
-      {item.image && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={item.image} alt="" className="w-full h-32 object-cover" loading="lazy" />
-      )}
-      <div className="p-3 flex flex-col gap-1.5 flex-1">
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] font-mono uppercase tracking-widest text-accent truncate">
-            {item.source_name}
-          </span>
-          {item.source_category && (
-            <span className="rounded border border-border px-1.5 py-0.5 text-[10px] uppercase text-faint shrink-0">
-              {item.source_category}
-            </span>
-          )}
-        </div>
-        <p className="text-sm text-text line-clamp-3 flex-1">{item.title ?? item.url}</p>
-        {item.url && (
-          <a
-            href={item.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            className="text-[10px] text-faint hover:text-accent transition-colors"
-          >
-            {new URL(item.url).hostname} ↗
-          </a>
-        )}
-      </div>
-    </Panel>
   );
 }
 
@@ -364,12 +459,9 @@ function PulseStream({ onPick }: Picker) {
     queryFn: () => fetchPulse({ relevantOnly, minTier: "warm" }),
   });
 
-  const tierColor = (tier: PulseTweet["tier"]) =>
-    tier === "hot" ? "text-hot" : tier === "warm" ? "text-warn" : "text-muted";
-
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <button
           onClick={() => setRelevantOnly((v) => !v)}
           className={`rounded-lg border px-2.5 py-1.5 text-xs transition-colors ${
@@ -380,13 +472,13 @@ function PulseStream({ onPick }: Picker) {
         >
           {t("pl.relevantOnly")}
         </button>
+        <span className="text-[11px] text-faint">{t("fl.pulseHint")}</span>
         {data && (
           <span className="text-[11px] text-faint font-mono ml-auto">
             {data.observed} · {data.window_hours}h
           </span>
         )}
       </div>
-      <StreamHint>{t("fl.pulseHint")}</StreamHint>
 
       {isLoading ? (
         <LoadingState />
@@ -395,42 +487,30 @@ function PulseStream({ onPick }: Picker) {
       ) : !data || data.items.length === 0 ? (
         <EmptyState label={t("pl.empty")} />
       ) : (
-        <div className="grid gap-2.5">
+        <div className={GRID}>
           {data.items.map((tw) => (
-            <Panel
+            <Card
               key={tw.external_id}
-              onClick={() =>
-                onPick({
-                  topic: tw.text,
-                  source: tw.author_handle ? `@${tw.author_handle}` : undefined,
-                })
-              }
-              className="p-3 cursor-pointer hover:border-accent/50 transition-colors"
+              onPick={onPick}
+              item={{
+                id: tw.external_id,
+                title: `@${tw.author_handle ?? "?"}`,
+                body: tw.text,
+                url: tw.url,
+                sourceLabel: tw.tier.toUpperCase(),
+                meta: `${Math.round(tw.views_per_hour)}/h`,
+                seedText: tw.text,
+              }}
             >
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] font-mono text-muted truncate">
-                  @{tw.author_handle ?? "?"}
-                </span>
-                <span className={`font-mono text-[11px] tabular-nums ml-auto ${tierColor(tw.tier)}`}>
+              <div className="flex items-center gap-3 font-mono text-[10px] tabular-nums text-faint">
+                <span className={tw.tier === "hot" ? "text-hot" : "text-warn"}>
                   ▲{tw.score.toFixed(0)}
                 </span>
-                <span className="font-mono text-[10px] text-faint tabular-nums">
-                  {Math.round(tw.views_per_hour)}/h
-                </span>
+                <span>{tw.likes ?? 0}♥</span>
+                <span>{tw.reposts ?? 0}⇄</span>
+                {tw.impressions != null && <span>{tw.impressions.toLocaleString()}</span>}
               </div>
-              <p className="text-sm text-text mt-1.5 line-clamp-4">{tw.text}</p>
-              {tw.url && (
-                <a
-                  href={tw.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={(e) => e.stopPropagation()}
-                  className="text-[10px] text-faint hover:text-accent mt-1.5 inline-block"
-                >
-                  X ↗
-                </a>
-              )}
-            </Panel>
+            </Card>
           ))}
         </div>
       )}
@@ -455,11 +535,11 @@ function RecycleStream({ onPick }: Picker) {
   const best = (data ?? [])
     .filter((tw: ImportedTweet) => (tw.likes ?? 0) > 0)
     .sort((a, b) => (b.likes ?? 0) - (a.likes ?? 0))
-    .slice(0, 30);
+    .slice(0, 40);
 
   return (
     <div className="flex flex-col gap-3">
-      <StreamHint>{t("fl.recycleHint")}</StreamHint>
+      <p className="text-[11px] text-faint">{t("fl.recycleHint")}</p>
       {isLoading ? (
         <LoadingState />
       ) : error ? (
@@ -467,28 +547,27 @@ function RecycleStream({ onPick }: Picker) {
       ) : best.length === 0 ? (
         <EmptyState label={t("fl.recycleEmpty")} />
       ) : (
-        <div className="grid gap-2.5">
+        <div className={GRID}>
           {best.map((tw) => (
-            <Panel
+            <Card
               key={tw.id}
-              onClick={() => onPick({ topic: tw.text, source: t("fl.recycle") })}
-              className="p-3 cursor-pointer hover:border-accent/50 transition-colors"
+              onPick={onPick}
+              item={{
+                id: tw.id,
+                title: tw.text.slice(0, 80),
+                body: tw.text,
+                url: tw.url,
+                sourceLabel: t("fl.recycle"),
+                meta: tw.posted_at ? new Date(tw.posted_at).toLocaleDateString() : null,
+                seedText: tw.text,
+              }}
             >
-              <div className="flex items-center gap-3">
-                <span className="font-mono text-xs tabular-nums text-good">{tw.likes}♥</span>
-                {tw.impressions != null && (
-                  <span className="font-mono text-[10px] tabular-nums text-faint">
-                    {tw.impressions.toLocaleString()}
-                  </span>
-                )}
-                {tw.posted_at && (
-                  <span className="font-mono text-[10px] text-faint ml-auto">
-                    {new Date(tw.posted_at).toLocaleDateString()}
-                  </span>
-                )}
+              <div className="flex items-center gap-3 font-mono text-[10px] tabular-nums text-faint">
+                <span className="text-good">{tw.likes}♥</span>
+                <span>{tw.reposts ?? 0}⇄</span>
+                {tw.impressions != null && <span>{tw.impressions.toLocaleString()}</span>}
               </div>
-              <p className="text-sm text-text mt-1.5 line-clamp-4">{tw.text}</p>
-            </Panel>
+            </Card>
           ))}
         </div>
       )}
