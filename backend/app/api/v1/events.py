@@ -114,6 +114,7 @@ async def list_events(
     status: str | None = Query(None),
     min_trend: float = Query(0.0, ge=0.0, le=100.0),
     q: str = Query("", max_length=200),
+    category: str = Query("", max_length=64),
     order_by: str = Query("trend_score", pattern="^(trend_score|opportunity_score|last_seen_at)$"),
 ) -> EventList:
     filters = []
@@ -124,6 +125,8 @@ async def list_events(
         filters.append(Event.status != EventStatus.ARCHIVED)
     if min_trend > 0:
         filters.append(Event.trend_score >= min_trend)
+    if category.strip():
+        filters.append(Event.category == category.strip())
     if q.strip():
         # Search the event itself AND the headlines merged into it, so an article that
         # clustered under a different title is still findable.
@@ -131,6 +134,7 @@ async def list_events(
         filters.append(
             or_(
                 Event.title.ilike(like),
+                Event.title_local.ilike(like),
                 Event.summary.ilike(like),
                 Event.id.in_(
                     select(ContentItem.event_id).where(

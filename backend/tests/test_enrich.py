@@ -44,20 +44,30 @@ def test_gate_topic_matched_enriched_even_if_low_score() -> None:
 
 
 def test_parse_enrichment_plain_json() -> None:
-    summary, entities = parse_enrichment('{"summary": "A thing happened.", "entities": ["OpenAI"]}')
+    summary, entities, title = parse_enrichment(
+        '{"title": "Bir şey oldu", "summary": "A thing happened.", "entities": ["OpenAI"]}'
+    )
     assert summary == "A thing happened."
     assert entities == ["OpenAI"]
+    # The localised headline is what the console shows instead of the English original.
+    assert title == "Bir şey oldu"
+
+
+def test_parse_enrichment_tolerates_a_missing_title() -> None:
+    # Older prompts / sloppy replies omit it; that must not lose the summary.
+    summary, entities, title = parse_enrichment('{"summary": "S", "entities": []}')
+    assert (summary, entities, title) == ("S", [], None)
 
 
 def test_parse_enrichment_with_code_fence() -> None:
     raw = '```json\n{"summary": "S", "entities": ["A", "B"]}\n```'
-    summary, entities = parse_enrichment(raw)
+    summary, entities, _title = parse_enrichment(raw)
     assert summary == "S"
     assert entities == ["A", "B"]
 
 
 def test_parse_enrichment_garbage_is_safe() -> None:
-    assert parse_enrichment("[mock] not json") == (None, [])
+    assert parse_enrichment("[mock] not json") == (None, [], None)
 
 
 def test_build_prompt_caps_items() -> None:
@@ -72,7 +82,7 @@ class _JSONStub(LLMProvider):
 
 @pytest.mark.asyncio
 async def test_enrich_event_with_stub() -> None:
-    summary, entities = await enrich_event("Title", ["a", "b"], _JSONStub())
+    summary, entities, _title = await enrich_event("Title", ["a", "b"], _JSONStub())
     assert summary == "Stub summary."
     assert entities == ["Alpha", "Beta"]
 

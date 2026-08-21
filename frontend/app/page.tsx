@@ -42,9 +42,13 @@ export default function DashboardPage() {
   const { t } = useI18n();
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
+  const [category, setCategory] = useState("");
   const q = search.trim();
   // Searching looks across ALL events (no trend floor) so nothing is hidden from you.
-  const queryKey = ["events", { orderBy: "opportunity_score", minTrend: MIN_TREND, q }];
+  const queryKey = [
+    "events",
+    { orderBy: "opportunity_score", minTrend: MIN_TREND, q, category },
+  ];
   const { data, isLoading, error, refetch } = useQuery({
     queryKey,
     queryFn: () =>
@@ -53,6 +57,7 @@ export default function DashboardPage() {
         orderBy: "opportunity_score",
         minTrend: q ? 0 : MIN_TREND,
         q,
+        category,
       }),
   });
   const { data: topics } = useQuery({ queryKey: ["topics"], queryFn: fetchTopics });
@@ -76,6 +81,10 @@ export default function DashboardPage() {
   });
 
   const events = data?.items ?? [];
+  // Only offer categories that actually exist in the current result set.
+  const categories = Array.from(
+    new Set(events.map((e) => e.category).filter((c): c is string => !!c)),
+  ).sort();
   const actNow = events
     .filter((e) => e.opportunity_score >= 50)
     .sort((a, b) => b.opportunity_score - a.opportunity_score);
@@ -114,6 +123,34 @@ export default function DashboardPage() {
           {t("dash.searchHint")}
         </span>
       </div>
+
+      {categories.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          <button
+            onClick={() => setCategory("")}
+            className={`rounded-lg border px-2.5 py-1 text-xs transition-colors ${
+              category === ""
+                ? "border-accent/60 text-accent bg-accent/10"
+                : "border-border text-muted hover:text-text"
+            }`}
+          >
+            {t("dash.catAll")}
+          </button>
+          {categories.map((c) => (
+            <button
+              key={c}
+              onClick={() => setCategory(c === category ? "" : c)}
+              className={`rounded-lg border px-2.5 py-1 text-xs transition-colors ${
+                category === c
+                  ? "border-accent/60 text-accent bg-accent/10"
+                  : "border-border text-muted hover:text-text"
+              }`}
+            >
+              {t(`cat.${c}`) === `cat.${c}` ? c : t(`cat.${c}`)}
+            </button>
+          ))}
+        </div>
+      )}
 
       {!q && data && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
