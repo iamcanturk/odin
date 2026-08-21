@@ -49,6 +49,14 @@ class Post(TimestampMixin, Base):
 
     posted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     media_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    # When you intend to post it. Publishing stays manual (X intent URL), so this is a
+    # reminder queue, not a scheduler — nothing is ever posted on your behalf.
+    scheduled_for: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )
+    reminded_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     # Cached so the repetition guard doesn't re-embed your whole history on every check.
     embedding: Mapped[list[float] | None] = mapped_column(Vector(EMBED_DIM), nullable=True)
     contains_link: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

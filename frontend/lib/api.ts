@@ -266,6 +266,7 @@ export interface Prediction {
 }
 
 export interface Post {
+  scheduled_for: string | null;
   id: string;
   platform: string;
   external_id: string | null;
@@ -760,6 +761,17 @@ export interface PostMortem {
   comparisons: Comparison[];
   lessons: string[];
 }
+
+export interface Slot {
+  when: string | null;
+  hour: number | null;
+  reason: string;
+}
+
+export const fetchSlot = () => getJSON<Slot>("/posts/slot");
+
+export const schedulePost = (id: string, body: { when?: string | null; auto?: boolean }) =>
+  send<Post>(`/posts/${id}/schedule`, "POST", body);
 
 export const fetchPostMortem = (id: string) =>
   getJSON<PostMortem>(`/posts/${id}/postmortem`);

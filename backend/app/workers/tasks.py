@@ -14,6 +14,7 @@ from app.core.config import get_settings
 from app.core.db import async_session_factory
 from app.core.logging import configure_logging, get_logger
 from app.pipeline.ingest import process_pending, run_ingestion
+from app.pipeline.queue import due_reminders
 from app.pipeline.retention import purge_old_content
 from app.pipeline.style import build_style_profile
 from app.providers.factory import get_embedding_provider, get_llm_provider
@@ -62,13 +63,21 @@ async def refresh_style(ctx: dict[str, Any]) -> dict[str, Any]:
     return {"posts": profile.post_count}
 
 
+async def fire_reminders(ctx: dict[str, Any]) -> dict[str, Any]:
+    """Tell you when a queued draft's slot arrives. Nothing is ever posted for you."""
+    async with async_session_factory() as session:
+        created = await due_reminders(session)
+        await session.commit()
+    return {"reminders": len(created)}
+
+
 async def startup(ctx: dict[str, Any]) -> None:
     configure_logging(get_settings().log_level)
     log.info("worker.startup")
 
 
 class WorkerSettings:
-    functions = [poll_sources, process_inbound, purge_stale, refresh_style]
+    functions = [poll_sources, process_inbound, purge_stale, refresh_style, fire_reminders]
     on_startup = startup
     redis_settings = RedisSettings.from_dsn(get_settings().redis_url)
     cron_jobs = [
@@ -76,4 +85,5 @@ class WorkerSettings:
         cron(process_inbound, second={0, 30}),  # process inbound items ~every 30s
         cron(purge_stale, hour={4}, minute={20}),  # nightly cleanup, off-peak
         cron(refresh_style, hour={5}, minute={0}),  # relearn your voice daily
+        cron(fire_reminders, minute={0, 10, 20, 30, 40, 50}),  # queued drafts come due
     ]

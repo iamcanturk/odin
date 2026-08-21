@@ -15,6 +15,7 @@ from app.models import Post, ProfileSnapshot
 from app.pipeline.benchmark import CORPUS_WINDOW_DAYS, latest_sightings
 from app.pipeline.postmortem import post_mortem
 from app.pipeline.publish import mark_posted
+from app.pipeline.queue import schedule, suggest_slot
 from app.schemas.api import MarkPostedRequest, PostRead
 
 
@@ -36,6 +37,51 @@ async def list_posts(
         stmt = stmt.where(Post.status == status)
     rows = await session.execute(stmt)
     return list(rows.scalars())
+
+
+class ScheduleRequest(BaseModel):
+    """Queue a draft. `auto` asks for your best hour; `when=null` clears the queue."""
+
+    when: datetime | None = None
+    auto: bool = False
+
+
+class SlotRead(BaseModel):
+    when: datetime | None = None
+    hour: int | None = None
+    reason: str
+
+
+@router.get("/slot", response_model=SlotRead)
+async def next_slot(session: AsyncSession = Depends(get_session)) -> SlotRead:
+    """The next occurrence of your best posting hour, or why we can't name one."""
+    s = await suggest_slot(session)
+    return SlotRead(**s.__dict__)
+
+
+@router.post("/{post_id}/schedule", response_model=PostRead)
+async def schedule_post(
+    post_id: uuid.UUID,
+    payload: ScheduleRequest,
+    session: AsyncSession = Depends(get_session),
+) -> Post:
+    post = await session.get(Post, post_id)
+    if post is None:
+        raise HTTPException(status_code=404, detail="Post not found")
+    if post.status == "posted":
+        raise HTTPException(status_code=409, detail="Already posted")
+
+    when = payload.when
+    if payload.auto:
+        slot = await suggest_slot(session)
+        if slot.when is None:
+            raise HTTPException(status_code=409, detail=slot.reason)
+        when = slot.when
+
+    await schedule(session, post, when)
+    await session.commit()
+    await session.refresh(post)
+    return post
 
 
 class ComparisonRead(BaseModel):

@@ -234,6 +234,7 @@ class PostRead(ORMModel):
     origin: str
     angle: str | None = None
     event_id: uuid.UUID | None = None
+    scheduled_for: datetime | None = None
     created_at: datetime
 
 
