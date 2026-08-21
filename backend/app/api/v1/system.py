@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_session
-from app.models import LlmUsage, RunLog
+from app.models import LlmUsage, ProfileSnapshot, RunLog
+from app.pipeline.benchmark import CORPUS_WINDOW_DAYS, latest_sightings
+from app.pipeline.cadence import cadence, set_weekly_goal
 
 router = APIRouter(prefix="/system", tags=["system"])
 
@@ -39,6 +41,59 @@ class SystemStatus(BaseModel):
     tokens_total: int
     by_purpose: list[CostBucket]
     recent_runs: list[RunLogRead]
+
+
+class DayCountRead(BaseModel):
+    day: date
+    label: str
+    posts: int
+    is_today: bool
+    is_future: bool
+
+
+class CadenceRead(BaseModel):
+    goal: int
+    posted: int
+    remaining: int
+    days_left: int
+    per_day_needed: float
+    on_track: bool
+    quality_posts: int
+    week_start: date | None = None
+    by_day: list[DayCountRead] = []
+
+
+class GoalUpdate(BaseModel):
+    goal: int = Field(ge=1, le=200)
+
+
+@router.get("/cadence", response_model=CadenceRead)
+async def get_cadence(session: AsyncSession = Depends(get_session)) -> CadenceRead:
+    """This week against your target, split across the days you have left."""
+    handles = {
+        h.lower()
+        for (h,) in await session.execute(select(ProfileSnapshot.handle).distinct())
+        if h
+    }
+    corpus = await latest_sightings(
+        session,
+        own_handles=handles,
+        cutoff=datetime.now(UTC) - timedelta(days=CORPUS_WINDOW_DAYS),
+    )
+    c = await cadence(session, corpus_likes=sorted(float(t.likes or 0) for t in corpus))
+    return CadenceRead(
+        **{k: v for k, v in c.__dict__.items() if k != "by_day"},
+        by_day=[DayCountRead(**d.__dict__) for d in c.by_day],
+    )
+
+
+@router.put("/cadence/goal", response_model=CadenceRead)
+async def update_goal(
+    payload: GoalUpdate, session: AsyncSession = Depends(get_session)
+) -> CadenceRead:
+    await set_weekly_goal(session, payload.goal)
+    await session.commit()
+    return await get_cadence(session)
 
 
 @router.get("", response_model=SystemStatus)

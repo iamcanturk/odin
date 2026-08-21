@@ -784,3 +784,30 @@ export const schedulePost = (id: string, body: { when?: string | null; auto?: bo
 
 export const fetchPostMortem = (id: string) =>
   getJSON<PostMortem>(`/posts/${id}/postmortem`);
+
+// ---- Weekly cadence: are you posting as much as you said you would? ----
+
+export interface DayCount {
+  day: string;
+  label: string;
+  posts: number;
+  is_today: boolean;
+  is_future: boolean;
+}
+
+export interface Cadence {
+  goal: number;
+  posted: number;
+  remaining: number;
+  days_left: number;
+  per_day_needed: number;
+  on_track: boolean;
+  quality_posts: number;
+  week_start: string | null;
+  by_day: DayCount[];
+}
+
+export const fetchCadence = () => getJSON<Cadence>("/system/cadence");
+
+export const setWeeklyGoal = (goal: number) =>
+  send<Cadence>("/system/cadence/goal", "PUT", { goal });

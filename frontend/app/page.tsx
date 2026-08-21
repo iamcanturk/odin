@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { dismissEvent, fetchEvents, fetchTopics, type EventList } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { EventCard } from "@/components/EventCard";
+import { CadencePanel } from "@/components/CadencePanel";
 import {
   EmptyState,
   ErrorState,
@@ -111,6 +112,8 @@ export default function DashboardPage() {
             : t("dash.subtitle")
         }
       />
+
+      <CadencePanel />
 
       <div className="relative">
         <input
