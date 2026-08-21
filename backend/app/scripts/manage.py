@@ -161,7 +161,9 @@ async def rematch() -> None:
 async def style() -> None:
     """Recompute the writing-style fingerprint from imported posts."""
     async with async_session_factory() as session:
-        profile = await build_style_profile(session, get_embedding_provider())
+        profile = await build_style_profile(
+            session, get_embedding_provider(), llm=get_llm_provider()
+        )
         await session.commit()
         print(f"style profile rebuilt from {profile.post_count} posts: {profile.summary}")
 

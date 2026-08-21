@@ -12,7 +12,7 @@ from app.core.db import get_session
 from app.models import Post, PostMetric, ProfileSnapshot, StyleProfile
 from app.pipeline.style import build_style_profile
 from app.pipeline.velocity import amplification_ratios
-from app.providers.factory import get_embedding_provider
+from app.providers.factory import get_embedding_provider, get_llm_provider
 from app.schemas.api import (
     ImportedTweet,
     MetricPoint,
@@ -155,7 +155,9 @@ async def get_profile(session: AsyncSession = Depends(get_session)) -> StyleProf
 
 @router.post("/rebuild", response_model=StyleProfileRead, status_code=201)
 async def rebuild_profile(session: AsyncSession = Depends(get_session)) -> StyleProfile:
-    profile = await build_style_profile(session, get_embedding_provider())
+    profile = await build_style_profile(
+        session, get_embedding_provider(), llm=get_llm_provider()
+    )
     await session.commit()
     await session.refresh(profile)
     return profile
