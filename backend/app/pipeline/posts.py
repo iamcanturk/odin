@@ -2,19 +2,91 @@
 
 from __future__ import annotations
 
+import re
 from datetime import UTC, datetime, timedelta
+from difflib import SequenceMatcher
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.logging import get_logger
 from app.models import Post, PostMetric
+from app.pipeline.publish import mark_posted
 from app.schemas.x import XIngestItem
+
+log = get_logger("odin.posts")
 
 _METRIC_FIELDS = ("impressions", "likes", "replies", "reposts", "bookmarks")
 
 # Browsing your own profile fires repeated scans; without a floor an unchanged reading
 # would be stored every few seconds. Just under the 5-minute sampling cadence.
 MIN_SNAPSHOT_GAP = timedelta(minutes=4)
+
+
+def normalise_for_match(text: str) -> str:
+    """Compare drafts to published tweets ignoring cosmetic differences.
+
+    X mangles what you paste: it trims, collapses whitespace, and appends a t.co link when
+    media or a URL is attached. Matching on the raw string would almost never hit.
+    """
+    t = re.sub(r"https?://\S+", " ", text or "")
+    t = re.sub(r"[^\w\s]", " ", t, flags=re.UNICODE)
+    return re.sub(r"\s+", " ", t).strip().lower()
+
+
+def match_ratio(a: str, b: str) -> float:
+    """0-1 similarity between a draft and a published tweet, on normalised text."""
+    na, nb = normalise_for_match(a), normalise_for_match(b)
+    if not na or not nb:
+        return 0.0
+    return SequenceMatcher(None, na, nb).ratio()
+
+
+async def link_posted_draft(
+    session: AsyncSession, item: XIngestItem, *, threshold: float = 0.86
+) -> Post | None:
+    """Find the approved draft this tweet came from and link it automatically.
+
+    Removes the manual "paste the tweet id" step: the extension sees your new tweet
+    anyway, so if it closely matches a draft you approved, that draft IS this tweet.
+    Deliberately conservative — a wrong link would attach a prediction to the wrong post
+    and corrupt the learning loop, so anything below the threshold is left alone.
+    """
+    if not item.text or not item.id:
+        return None
+
+    candidates = list(
+        (
+            await session.execute(
+                select(Post).where(
+                    Post.origin == "generated",
+                    Post.status == "approved",
+                    Post.external_id.is_(None),
+                )
+            )
+        ).scalars()
+    )
+    if not candidates:
+        return None
+
+    best, best_score = None, 0.0
+    for post in candidates:
+        score = match_ratio(post.text, item.text)
+        if score > best_score:
+            best, best_score = post, score
+
+    if best is None or best_score < threshold:
+        return None
+
+    linked = await mark_posted(session, best.id, item.id)
+    if linked is not None:
+        log.info(
+            "posts.auto_linked",
+            post_id=str(best.id),
+            tweet=item.id,
+            score=round(best_score, 3),
+        )
+    return linked
 
 
 def _contains_link(item: XIngestItem) -> bool:

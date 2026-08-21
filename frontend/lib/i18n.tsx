@@ -374,6 +374,10 @@ const M: Record<string, { tr: string; en: string }> = {
     tr: "Henüz taslak yok. Bir olaydan aday onaylayarak kuyruğa ekle.",
     en: "No drafts yet. Approve a candidate from an event to queue it here.",
   },
+  "df.autoHint": {
+    tr: "Tweeti attıktan sonra uzantı eşleştirip otomatik bağlar — id yapıştırmana gerek yok.",
+    en: "After you post, the extension matches it and links automatically — no id needed.",
+  },
   "df.pasteId": { tr: "Paylaştıktan sonra X gönderi id'sini yapıştır", en: "Paste the X post id after posting" },
   "df.markPosted": { tr: "Paylaşıldı işaretle", en: "Mark posted" },
   "df.posted": { tr: "paylaşıldı · id", en: "posted · id" },
