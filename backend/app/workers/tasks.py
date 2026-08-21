@@ -15,10 +15,12 @@ from app.core.db import async_session_factory
 from app.core.logging import configure_logging, get_logger
 from app.pipeline.ingest import process_pending, run_ingestion
 from app.pipeline.public_metrics import refresh_public_metrics
+from app.pipeline.push import push_pending
 from app.pipeline.queue import due_reminders
 from app.pipeline.retention import purge_old_content
 from app.pipeline.style import build_style_profile
 from app.providers.factory import get_embedding_provider, get_llm_provider
+from app.providers.telegram import get_telegram
 
 log = get_logger("odin.worker")
 
@@ -80,6 +82,14 @@ async def refresh_metrics(ctx: dict[str, Any]) -> dict[str, Any]:
     return {"checked": stats.checked, "updated": stats.updated, "missing": stats.missing}
 
 
+async def push_notifications(ctx: dict[str, Any]) -> dict[str, Any]:
+    """Mirror notifications to Telegram. A dead channel must not break the pipeline."""
+    async with async_session_factory() as session:
+        stats = await push_pending(session, get_telegram())
+        await session.commit()
+    return {"sent": stats.sent, "errors": stats.errors}
+
+
 async def startup(ctx: dict[str, Any]) -> None:
     configure_logging(get_settings().log_level)
     log.info("worker.startup")
@@ -93,6 +103,7 @@ class WorkerSettings:
         refresh_style,
         fire_reminders,
         refresh_metrics,
+        push_notifications,
     ]
     on_startup = startup
     redis_settings = RedisSettings.from_dsn(get_settings().redis_url)
@@ -103,4 +114,5 @@ class WorkerSettings:
         cron(refresh_style, hour={5}, minute={0}),  # relearn your voice daily
         cron(fire_reminders, minute={0, 10, 20, 30, 40, 50}),  # queued drafts come due
         cron(refresh_metrics, minute={5, 25, 45}),  # own-post likes/replies, extension-free
+        cron(push_notifications, minute={2, 12, 22, 32, 42, 52}),  # alerts to your phone
     ]

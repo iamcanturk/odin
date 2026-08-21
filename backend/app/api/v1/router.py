@@ -21,6 +21,7 @@ from app.api.v1 import (
     pulse,
     sources,
     system,
+    telegram,
     tester,
     topics,
 )
@@ -31,6 +32,7 @@ api_router = APIRouter()
 # Public routers.
 api_router.include_router(auth.router)
 api_router.include_router(ingest.router)  # guarded by its own X-Ingest-Token
+api_router.include_router(telegram.router)  # guarded by Telegram's secret_token header
 
 # Protected routers (require a valid session token when auth is enabled).
 _protected = Depends(require_auth)
