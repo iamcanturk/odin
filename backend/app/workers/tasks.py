@@ -14,6 +14,8 @@ from app.core.config import get_settings
 from app.core.db import async_session_factory
 from app.core.logging import configure_logging, get_logger
 from app.pipeline.ingest import process_pending, run_ingestion
+from app.pipeline.retention import purge_old_content
+from app.pipeline.style import build_style_profile
 from app.providers.factory import get_embedding_provider, get_llm_provider
 
 log = get_logger("odin.worker")
@@ -42,16 +44,34 @@ async def process_inbound(ctx: dict[str, Any]) -> dict[str, Any]:
     return {"items": stats.items_created, "events_created": stats.events_created}
 
 
+async def purge_stale(ctx: dict[str, Any]) -> dict[str, Any]:
+    """Delete ingested material past the retention window (your own data is untouched)."""
+    settings = get_settings()
+    async with async_session_factory() as session:
+        stats = await purge_old_content(session, days=settings.retention_days)
+    return {"items": stats.items, "events": stats.events, "observed": stats.observed}
+
+
+async def refresh_style(ctx: dict[str, Any]) -> dict[str, Any]:
+    """Keep learning your voice as you post — the profile shouldn't be a one-off snapshot."""
+    async with async_session_factory() as session:
+        profile = await build_style_profile(session, get_embedding_provider())
+        await session.commit()
+    return {"posts": profile.post_count}
+
+
 async def startup(ctx: dict[str, Any]) -> None:
     configure_logging(get_settings().log_level)
     log.info("worker.startup")
 
 
 class WorkerSettings:
-    functions = [poll_sources, process_inbound]
+    functions = [poll_sources, process_inbound, purge_stale, refresh_style]
     on_startup = startup
     redis_settings = RedisSettings.from_dsn(get_settings().redis_url)
     cron_jobs = [
         cron(poll_sources, minute={0, 15, 30, 45}),  # poll sources every 15 min
         cron(process_inbound, second={0, 30}),  # process inbound items ~every 30s
+        cron(purge_stale, hour={4}, minute={20}),  # nightly cleanup, off-peak
+        cron(refresh_style, hour={5}, minute={0}),  # relearn your voice daily
     ]

@@ -21,6 +21,7 @@ from app.pipeline.cost import persist_usage
 from app.pipeline.enrich import apply_enrichment
 from app.pipeline.ingest import build_adapter, run_ingestion
 from app.pipeline.opportunity import apply_opportunity
+from app.pipeline.retention import purge_old_content
 from app.pipeline.style import build_style_profile
 from app.pipeline.topics import apply_topic_matching
 from app.providers.factory import get_embedding_provider, get_llm_provider
@@ -235,6 +236,17 @@ async def backfill_media() -> None:
         print(f"backfilled images on {updated} item(s) across {len(sources)} feed(s)")
 
 
+async def purge_old() -> None:
+    """Apply the retention window now instead of waiting for the nightly job."""
+    settings = get_settings()
+    async with async_session_factory() as session:
+        stats = await purge_old_content(session, days=settings.retention_days)
+    print(
+        f"purged {stats.items} item(s), {stats.events} event(s), "
+        f"{stats.observed} observed tweet(s) older than {settings.retention_days}d"
+    )
+
+
 async def purge_events() -> None:
     """One-time cleanup: wipe all events + ingested items so the console starts fresh.
 
@@ -263,6 +275,7 @@ async def _dispatch(command: str) -> None:
         "style": style,
         "enrich": enrich,
         "backfill-media": backfill_media,
+        "purge-old": purge_old,
         "purge-events": purge_events,
     }[command]()
 
@@ -273,7 +286,7 @@ def main() -> None:
         "command",
         choices=[
             "seed", "ingest", "rematch", "style", "enrich",
-            "backfill-media", "purge-events",
+            "backfill-media", "purge-old", "purge-events",
         ],
     )
     args = parser.parse_args()
