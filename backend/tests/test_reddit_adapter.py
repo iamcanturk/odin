@@ -80,3 +80,93 @@ async def test_fetch_dedupes() -> None:
 
     assert result.status == "ok"
     assert len(result.items) == 2  # duplicate t3_aaa collapsed
+
+# ---- app-only OAuth path ----
+
+
+async def test_without_credentials_it_uses_the_anonymous_endpoint(monkeypatch):
+    """No credentials configured: behaviour is unchanged from before."""
+    from app.core.config import get_settings
+
+    settings = get_settings()
+    monkeypatch.setattr(settings, "reddit_client_id", "")
+    monkeypatch.setattr(settings, "reddit_client_secret", "")
+
+    seen: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(str(request.url))
+        return httpx.Response(200, json={"data": {"children": []}})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        adapter = RedditAdapter(["programming"], client=client)
+        assert adapter.authenticated is False
+        await adapter.fetch()
+
+    assert "www.reddit.com" in seen[0]
+    assert "oauth.reddit.com" not in seen[0]
+
+
+async def test_credentials_switch_it_to_the_oauth_host(monkeypatch):
+    from app.core.config import get_settings
+
+    settings = get_settings()
+    monkeypatch.setattr(settings, "reddit_client_id", "id")
+    monkeypatch.setattr(settings, "reddit_client_secret", "secret")
+
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        if "access_token" in str(request.url):
+            return httpx.Response(200, json={"access_token": "tok", "expires_in": 3600})
+        return httpx.Response(200, json={"data": {"children": []}})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        adapter = RedditAdapter(["programming"], client=client)
+        assert adapter.authenticated is True
+        await adapter.fetch()
+
+    listing = seen[-1]
+    assert "oauth.reddit.com" in str(listing.url)
+    assert listing.headers["Authorization"] == "bearer tok"
+
+
+async def test_the_token_is_reused_across_fetches(monkeypatch):
+    from app.core.config import get_settings
+
+    settings = get_settings()
+    monkeypatch.setattr(settings, "reddit_client_id", "id")
+    monkeypatch.setattr(settings, "reddit_client_secret", "secret")
+
+    tokens = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal tokens
+        if "access_token" in str(request.url):
+            tokens += 1
+            return httpx.Response(200, json={"access_token": "tok", "expires_in": 3600})
+        return httpx.Response(200, json={"data": {"children": []}})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        adapter = RedditAdapter(["programming"], client=client)
+        await adapter.fetch()
+        await adapter.fetch()
+
+    assert tokens == 1
+
+
+async def test_a_datacenter_403_explains_the_fix(monkeypatch):
+    """The most common failure should name its own remedy."""
+    from app.core.config import get_settings
+
+    settings = get_settings()
+    monkeypatch.setattr(settings, "reddit_client_id", "")
+    monkeypatch.setattr(settings, "reddit_client_secret", "")
+
+    transport = httpx.MockTransport(lambda r: httpx.Response(403, text="blocked"))
+    async with httpx.AsyncClient(transport=transport) as client:
+        result = await RedditAdapter(["programming"], client=client).fetch()
+
+    assert result.status == "error"
+    assert "REDDIT_CLIENT_ID" in result.error

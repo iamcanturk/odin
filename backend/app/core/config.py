@@ -55,6 +55,11 @@ class Settings(BaseSettings):
     # Where Telegram should send updates, and where the bot's links point.
     public_base_url: str = "https://odin.iamcanturk.dev"
 
+    # Reddit app-only OAuth. Without these the adapter falls back to the anonymous
+    # JSON endpoint, which 403s from datacenter IPs.
+    reddit_client_id: str = ""
+    reddit_client_secret: str = ""
+
     # Single-user auth. Empty auth_password = auth DISABLED (dev). Set both in prod.
     auth_username: str = "admin"
     auth_password: str = ""
