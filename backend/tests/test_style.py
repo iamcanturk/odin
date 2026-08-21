@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from app.pipeline.style import compute_style_profile
 
 POSTS = [
@@ -97,3 +99,59 @@ def test_words_in_most_posts_are_background_not_voice() -> None:
     assert set(fp.top_terms) == {"docker", "kubernetes", "postgres", "redis", "nginx"}
     for background in ("gerçekten", "şekilde", "gerekiyor", "artık", "yeni"):
         assert background not in fp.top_terms
+
+
+@pytest.mark.asyncio
+async def test_topics_come_from_the_model_not_word_counts(db_sessionmaker) -> None:
+    """Word frequency can't separate ordinary language from a subject.
+
+    In a one-author corpus there's no reference for "normal" Turkish, so filler like
+    "gerekiyor" scores exactly like a real topic. Asking the model settles it.
+    """
+    import json as _json
+
+    from app.models import Post
+    from app.pipeline.style import build_style_profile
+    from app.providers.base import LLMProvider
+    from app.providers.embedding import HashEmbeddingProvider
+
+    class _TopicLLM(LLMProvider):
+        async def generate(self, prompt, *, system=None, temperature=0.7, max_tokens=512) -> str:
+            return _json.dumps({"topics": ["Docker", "CI/CD", "web güvenliği"]})
+
+    async with db_sessionmaker() as session:
+        for i in range(3):
+            session.add(
+                Post(
+                    platform="x", text=f"Bu gerçekten gerekiyor artık, şekilde {i}",
+                    status="posted", origin="imported", external_id=f"t{i}",
+                )
+            )
+        await session.commit()
+
+        profile = await build_style_profile(
+            session, HashEmbeddingProvider(dim=384), llm=_TopicLLM()
+        )
+        await session.commit()
+
+    assert profile.features["top_terms"] == ["Docker", "CI/CD", "web güvenliği"]
+    assert "Writes about: Docker" in profile.summary
+    # None of the filler survived into what the generator is told about the author.
+    assert "gerekiyor" not in profile.summary
+
+
+@pytest.mark.asyncio
+async def test_word_counting_still_works_without_an_llm(db_sessionmaker) -> None:
+    from app.models import Post
+    from app.pipeline.style import build_style_profile
+    from app.providers.embedding import HashEmbeddingProvider
+
+    async with db_sessionmaker() as session:
+        session.add(
+            Post(platform="x", text="Docker imajları", status="posted", origin="imported",
+                 external_id="z1")
+        )
+        await session.commit()
+        profile = await build_style_profile(session, HashEmbeddingProvider(dim=384))
+        await session.commit()
+    assert "top_terms" in profile.features  # falls back, doesn't crash

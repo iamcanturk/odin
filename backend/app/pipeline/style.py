@@ -6,6 +6,7 @@ successful posts is computed separately in build_style_profile.
 
 from __future__ import annotations
 
+import json
 import math
 import re
 from collections import Counter
@@ -15,8 +16,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Post, PostMetric, StyleProfile
+from app.pipeline.cost import persist_usage
 from app.pipeline.text import STOPWORDS
-from app.providers.base import EmbeddingProvider
+from app.providers.base import EmbeddingProvider, LLMProvider
 
 # Words for the STRUCTURAL features (length, caps, hooks) — apostrophes kept so "don't"
 # counts as one word.
@@ -122,12 +124,79 @@ def compute_style_profile(texts: list[str]) -> StyleFingerprint:
     return StyleFingerprint(post_count=n, features=features, top_terms=top_terms, summary=summary)
 
 
+_TOPICS_SYSTEM = (
+    "You are given a set of posts by one author. Reply with STRICT JSON: "
+    '{"topics": ["<subject>", ...]}. '
+    "List up to 8 SUBJECTS this person actually writes about — concrete things like "
+    "'Docker', 'AI agents', 'web security', 'freelancing'. Never list filler words, "
+    "generic verbs, or adjectives. Use the author's own language for the subjects. "
+    "No markdown, no prose outside the JSON."
+)
+
+
+async def derive_topics(texts: list[str], llm: LLMProvider, *, limit: int = 40) -> list[str]:
+    """Ask what this person writes about, instead of counting words.
+
+    Word frequency can't tell a common Turkish word from a topical one: within a
+    single-author corpus there is no reference for "normal" language, so filler like
+    "gerekiyor" or "gerçekten" scores exactly like a real subject. Stopword lists are
+    endless whack-a-mole. One model call per rebuild (daily) settles it properly.
+    """
+    sample = [t.strip() for t in texts if t and t.strip()][:limit]
+    if not sample:
+        return []
+    joined = "\n".join(f"- {t[:280]}" for t in sample)
+    raw = await llm.generate(
+        f"Posts:\n{joined}\n\nReturn the JSON.",
+        system=_TOPICS_SYSTEM,
+        temperature=0.2,
+        max_tokens=300,
+    )
+    text = raw.strip()
+    if text.startswith("```"):
+        text = text.strip("`")
+        text = text[text.find("{") :] if "{" in text else text
+    start, end = text.find("{"), text.rfind("}")
+    if start == -1 or end == -1 or end < start:
+        return []
+    try:
+        data = json.loads(text[start : end + 1])
+    except json.JSONDecodeError:
+        return []
+    topics = data.get("topics")
+    if not isinstance(topics, list):
+        return []
+    out: list[str] = []
+    for t in topics:
+        label = str(t).strip()
+        if label and label.lower() not in {o.lower() for o in out}:
+            out.append(label[:60])
+    return out[:8]
+
+
 async def build_style_profile(
-    session: AsyncSession, embedder: EmbeddingProvider, *, key: str = "default", top_k: int = 25
+    session: AsyncSession,
+    embedder: EmbeddingProvider,
+    *,
+    key: str = "default",
+    top_k: int = 25,
+    llm: LLMProvider | None = None,
 ) -> StyleProfile:
-    """Recompute + persist the style profile from all imported posts."""
+    """Recompute + persist the style profile from all imported posts.
+
+    When an LLM is supplied the subjects come from it rather than word counting, which is
+    the only reliable way to tell a topic from ordinary language in a one-author corpus.
+    """
     posts = list((await session.execute(select(Post))).scalars())
     fingerprint = compute_style_profile([p.text for p in posts])
+
+    if llm is not None and posts:
+        topics = await derive_topics([p.text for p in posts], llm)
+        if topics:
+            fingerprint.top_terms = topics
+            head, _, _ = fingerprint.summary.rpartition("Frequent terms:")
+            fingerprint.summary = f"{head}Writes about: {', '.join(topics[:6])}."
+        await persist_usage(session, purpose="style")
 
     centroid: list[float] | None = None
     if posts:

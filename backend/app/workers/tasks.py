@@ -55,7 +55,9 @@ async def purge_stale(ctx: dict[str, Any]) -> dict[str, Any]:
 async def refresh_style(ctx: dict[str, Any]) -> dict[str, Any]:
     """Keep learning your voice as you post — the profile shouldn't be a one-off snapshot."""
     async with async_session_factory() as session:
-        profile = await build_style_profile(session, get_embedding_provider())
+        profile = await build_style_profile(
+            session, get_embedding_provider(), llm=get_llm_provider()
+        )
         await session.commit()
     return {"posts": profile.post_count}
 
