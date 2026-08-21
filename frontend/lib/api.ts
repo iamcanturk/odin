@@ -266,6 +266,7 @@ export interface Prediction {
 }
 
 export interface Post {
+  scheduled_for: string | null;
   id: string;
   platform: string;
   external_id: string | null;
@@ -371,6 +372,24 @@ export interface SourceItem {
   event_id: string | null;
 }
 
+export interface DiscoverItem extends SourceItem {
+  source_name: string;
+  source_category: string | null;
+}
+
+export function fetchDiscover(opts?: {
+  category?: string;
+  sourceId?: string;
+  withMedia?: boolean;
+}): Promise<DiscoverItem[]> {
+  const qs = new URLSearchParams();
+  if (opts?.category) qs.set("category", opts.category);
+  if (opts?.sourceId) qs.set("source_id", opts.sourceId);
+  if (opts?.withMedia) qs.set("with_media", "true");
+  const q = qs.toString();
+  return getJSON<DiscoverItem[]>(`/sources/discover${q ? `?${q}` : ""}`);
+}
+
 export const fetchSourceItems = (id: string) =>
   getJSON<SourceItem[]>(`/sources/${id}/items`);
 
@@ -402,6 +421,13 @@ export const fetchPerformance = () => getJSON<PerformanceSummary>("/performance"
 
 // ---- Tweet tester ----
 
+export interface RepeatMatch {
+  post_id: string;
+  text: string;
+  similarity: number;
+  days_ago: number | null;
+}
+
 export interface TesterResponse {
   viral_potential: number;
   x_simulation: number;
@@ -414,6 +440,7 @@ export interface TesterResponse {
   probabilities: Record<string, number>;
   strengths: string[];
   weaknesses: string[];
+  repeats: RepeatMatch[];
   scoring_version: string;
   disclaimer: string;
 }
@@ -674,3 +701,113 @@ export function recommendedAction(opportunity: number): { label: string; tone: s
   if (opportunity >= 50) return { label: "CONSIDER", tone: "warn" };
   return { label: "WAIT", tone: "muted" };
 }
+
+// ---- Benchmark: your numbers against the corpus you've actually seen ----
+
+export interface Distribution {
+  metric: string;
+  p25: number;
+  median: number;
+  p75: number;
+  p90: number;
+}
+
+export interface PostRank {
+  post_id: string;
+  text: string;
+  posted_at: string | null;
+  likes: number;
+  impressions: number | null;
+  like_percentile: number;
+  verdict: "below" | "typical" | "above" | "top";
+}
+
+export interface Benchmark {
+  corpus_size: number;
+  enough_data: boolean;
+  min_corpus: number;
+  window_days: number;
+  your_posts: number;
+  your_percentile: number | null;
+  caveat: string;
+  distributions: Distribution[];
+  posts: PostRank[];
+}
+
+export const fetchBenchmark = () => getJSON<Benchmark>("/performance/benchmark");
+
+// ---- Post-mortem: why one post did what it did ----
+
+export interface Comparison {
+  label: string;
+  actual: number;
+  reference: number | null;
+  verdict: "better" | "similar" | "worse" | "unknown";
+  note: string;
+}
+
+export interface PostMortem {
+  post_id: string;
+  text: string;
+  posted_at: string | null;
+  hours_since_post: number | null;
+  settled: boolean;
+  likes: number;
+  replies: number;
+  reposts: number;
+  impressions: number | null;
+  first_hour_likes: number | null;
+  tags: string[];
+  comparisons: Comparison[];
+  lessons: string[];
+}
+
+export interface Slot {
+  when: string | null;
+  hour: number | null;
+  reason: string;
+}
+
+export interface PollResult {
+  source: string;
+  fetched: number;
+  errors: string[];
+}
+
+export const pollSource = (id: string) =>
+  send<PollResult>(`/sources/${id}/poll`, "POST", {});
+
+export const fetchSlot = () => getJSON<Slot>("/posts/slot");
+
+export const schedulePost = (id: string, body: { when?: string | null; auto?: boolean }) =>
+  send<Post>(`/posts/${id}/schedule`, "POST", body);
+
+export const fetchPostMortem = (id: string) =>
+  getJSON<PostMortem>(`/posts/${id}/postmortem`);
+
+// ---- Weekly cadence: are you posting as much as you said you would? ----
+
+export interface DayCount {
+  day: string;
+  label: string;
+  posts: number;
+  is_today: boolean;
+  is_future: boolean;
+}
+
+export interface Cadence {
+  goal: number;
+  posted: number;
+  remaining: number;
+  days_left: number;
+  per_day_needed: number;
+  on_track: boolean;
+  quality_posts: number;
+  week_start: string | null;
+  by_day: DayCount[];
+}
+
+export const fetchCadence = () => getJSON<Cadence>("/system/cadence");
+
+export const setWeeklyGoal = (goal: number) =>
+  send<Cadence>("/system/cadence/goal", "PUT", { goal });

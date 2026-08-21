@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchSystemStatus } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { ErrorState, LoadingState, PageHeader, Panel } from "@/components/ui";
+import { CadencePanel } from "@/components/CadencePanel";
 
 function money(v: number): string {
   return `$${v.toFixed(v < 1 ? 4 : 2)}`;
@@ -33,6 +34,8 @@ export default function SystemPage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title={t("sys.title")} subtitle={t("sys.subtitle")} />
+
+      <CadencePanel editable />
 
       {isLoading && <LoadingState />}
       {error && <ErrorState message={(error as Error).message} onRetry={() => refetch()} />}

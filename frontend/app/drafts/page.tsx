@@ -5,8 +5,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   deletePost,
   fetchPosts,
+  fetchSlot,
   markPosted,
   openInX,
+  schedulePost,
   updatePost,
   type Post,
 } from "@/lib/api";
@@ -34,7 +36,14 @@ function DraftRow({ post }: { post: Post }) {
     },
   });
   const remove = useMutation({ mutationFn: () => deletePost(post.id), onSuccess: invalidate });
+  const queue = useMutation({
+    mutationFn: (auto: boolean) =>
+      schedulePost(post.id, auto ? { auto: true } : { when: null }),
+    onSuccess: invalidate,
+  });
+  const { data: slot } = useQuery({ queryKey: ["slot"], queryFn: fetchSlot });
   const posted = post.status === "posted";
+  const queued = post.scheduled_for ? new Date(post.scheduled_for) : null;
 
   return (
     <Panel className="p-4">
@@ -85,6 +94,25 @@ function DraftRow({ post }: { post: Post }) {
               >
                 {t("cp.edit")}
               </button>
+              {queued ? (
+                <button
+                  onClick={() => queue.mutate(false)}
+                  disabled={queue.isPending}
+                  title={t("qu.hint")}
+                  className="rounded border border-warn/50 px-2 py-1 text-[11px] text-warn hover:bg-warn/10 disabled:opacity-40 transition-colors"
+                >
+                  {t("qu.unqueue")}
+                </button>
+              ) : (
+                <button
+                  onClick={() => queue.mutate(true)}
+                  disabled={queue.isPending || !slot?.when}
+                  title={slot?.when ? t("qu.hint") : slot?.reason}
+                  className="rounded border border-border px-2 py-1 text-[11px] text-muted hover:text-accent hover:border-accent/50 disabled:opacity-40 transition-colors"
+                >
+                  {t("qu.queue")}
+                </button>
+              )}
               <button
                 onClick={() => remove.mutate()}
                 disabled={remove.isPending}
@@ -93,6 +121,11 @@ function DraftRow({ post }: { post: Post }) {
                 {t("cp.delete")}
               </button>
             </div>
+          )}
+          {queued && (
+            <p className="text-[11px] text-accent mt-2">
+              {t("qu.queued")}: {queued.toLocaleString()} — {t("qu.hint")}
+            </p>
           )}
           <p className="text-[11px] text-faint mt-2">{t("df.autoHint")}</p>
           <div className="flex items-center gap-2 mt-1">

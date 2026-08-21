@@ -1,8 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchImportedTweets, type ImportedTweet, type MetricPoint } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
+import { PostMortem } from "@/components/PostMortem";
 import { Panel } from "@/components/ui";
 
 function compact(n: number): string {
@@ -62,6 +64,7 @@ function FirstHour({ history }: { history?: MetricPoint[] }) {
 
 function Row({ tw }: { tw: ImportedTweet }) {
   const { t } = useI18n();
+  const [analysing, setAnalysing] = useState(false);
   const when = tw.posted_at ? new Date(tw.posted_at).toLocaleDateString() : "";
   return (
     <div className="py-3 first:pt-0 last:pb-0 border-b border-border-soft last:border-0">
@@ -100,6 +103,14 @@ function Row({ tw }: { tw: ImportedTweet }) {
         )}
       </div>
       <FirstHour history={tw.history} />
+
+      <button
+        onClick={() => setAnalysing((v) => !v)}
+        className="mt-2 text-[11px] text-muted hover:text-accent transition-colors"
+      >
+        {analysing ? t("pm.close") : t("pm.open")}
+      </button>
+      {analysing && <PostMortem postId={tw.id} />}
     </div>
   );
 }

@@ -101,6 +101,26 @@ export default function TesterPage() {
             </Panel>
           </div>
 
+          {r.repeats.length > 0 && (
+            <Panel className="p-5 border-warn/40">
+              <h2 className="text-xs uppercase tracking-widest text-warn mb-2">
+                {t("ts.repeat")}
+              </h2>
+              <p className="text-[11px] text-muted mb-3">{t("ts.repeatHint")}</p>
+              <ul className="space-y-2">
+                {r.repeats.map((m) => (
+                  <li key={m.post_id} className="text-sm text-text">
+                    <span className="font-mono text-[11px] text-warn mr-2 tabular-nums">
+                      %{Math.round(m.similarity * 100)}
+                      {m.days_ago !== null && ` · ${m.days_ago}g`}
+                    </span>
+                    {m.text}
+                  </li>
+                ))}
+              </ul>
+            </Panel>
+          )}
+
           <p className="text-[11px] text-muted font-mono">⚠ {r.disclaimer}</p>
         </>
       )}

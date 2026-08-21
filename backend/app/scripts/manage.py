@@ -276,6 +276,27 @@ async def purge_events() -> None:
         print(f"purged {n_events} events and {n_items} content items")
 
 
+async def telegram_setup() -> None:
+    """Point Telegram at our webhook. Run once after setting the env vars."""
+    from app.providers.telegram import get_telegram
+
+    settings = get_settings()
+    if not settings.telegram_bot_token:
+        print("TELEGRAM_BOT_TOKEN is empty — nothing to register")
+        return
+    if not settings.telegram_webhook_secret:
+        print("TELEGRAM_WEBHOOK_SECRET is empty — refusing to register an open webhook")
+        return
+
+    url = f"{settings.public_base_url.rstrip('/')}{settings.api_v1_prefix}/telegram/webhook"
+    result = await get_telegram().set_webhook(url, settings.telegram_webhook_secret)
+    if result.ok:
+        print(f"webhook registered: {url}")
+        await get_telegram().send("ODIN bağlandı. /yardim yaz.")
+    else:
+        print(f"failed: {result.error}")
+
+
 async def _dispatch(command: str) -> None:
     await {
         "seed": seed,
@@ -286,6 +307,7 @@ async def _dispatch(command: str) -> None:
         "backfill-media": backfill_media,
         "purge-old": purge_old,
         "purge-events": purge_events,
+        "telegram-setup": telegram_setup,
     }[command]()
 
 
@@ -295,7 +317,7 @@ def main() -> None:
         "command",
         choices=[
             "seed", "ingest", "rematch", "style", "enrich",
-            "backfill-media", "purge-old", "purge-events",
+            "backfill-media", "purge-old", "purge-events", "telegram-setup",
         ],
     )
     args = parser.parse_args()

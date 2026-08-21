@@ -7,6 +7,7 @@ relative to the user's best-performing category.
 
 from __future__ import annotations
 
+import statistics
 from dataclasses import dataclass, field
 
 from sqlalchemy import select
@@ -85,6 +86,10 @@ def _rank(buckets: dict[str, list[float]]) -> list[Category]:
 DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 # Below this many posts a "best time" claim is noise, not a finding.
 MIN_POSTS_FOR_TIMING = 5
+# ...and a single BUCKET needs its own evidence. With 49 posts spread over 24 hours the
+# average bucket holds two, so one lucky post was enough to crown an hour: 05:00 scored
+# 500 avg engagement from 2 posts while every other hour sat between 1.5 and 5.
+MIN_POSTS_PER_BUCKET = 4
 
 
 @dataclass
@@ -101,6 +106,7 @@ class TimingSummary:
     total_posts: int = 0
     enough_data: bool = False
     min_posts: int = MIN_POSTS_FOR_TIMING
+    min_posts_per_bucket: int = MIN_POSTS_PER_BUCKET
     best_hour: int | None = None
     best_day: int | None = None
     by_hour: list[TimeSlot] = field(default_factory=list)
@@ -108,7 +114,9 @@ class TimingSummary:
 
 
 def _slots(buckets: dict[int, list[float]], labeller) -> list[TimeSlot]:
-    averaged = {k: (sum(v) / len(v), len(v)) for k, v in buckets.items() if v}
+    # Median, not mean: one post that took off shouldn't define an entire hour. This is
+    # the same outlier problem the calibration factor guards against.
+    averaged = {k: (statistics.median(v), len(v)) for k, v in buckets.items() if v}
     if not averaged:
         return []
     top = max(avg for avg, _ in averaged.values()) or 1.0
@@ -156,8 +164,15 @@ async def compute_timing(session: AsyncSession) -> TimingSummary:
 
     hours = _slots(by_hour, lambda h: f"{h:02d}:00")
     days = _slots(by_day, lambda d: DAY_NAMES[d % 7])
-    best_hour = max(hours, key=lambda s: s.avg_engagement).key if hours else None
-    best_day = max(days, key=lambda s: s.avg_engagement).key if days else None
+
+    # Only a bucket with its own evidence may be named "best". Everything is still shown
+    # in the chart — it just doesn't get to be advice.
+    def _best(slots: list[TimeSlot]) -> int | None:
+        eligible = [s for s in slots if s.posts >= MIN_POSTS_PER_BUCKET]
+        return max(eligible, key=lambda s: s.avg_engagement).key if eligible else None
+
+    best_hour = _best(hours)
+    best_day = _best(days)
 
     return TimingSummary(
         total_posts=len(timed),

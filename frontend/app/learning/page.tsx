@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchEvaluation } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { EmptyState, ErrorState, LoadingState, PageHeader, Panel } from "@/components/ui";
+import { BenchmarkPanel } from "@/components/BenchmarkPanel";
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
@@ -30,6 +31,8 @@ export default function LearningPage() {
         <p className="text-sm text-muted mt-2 leading-relaxed">{t("ln.howBody")}</p>
         <p className="text-[11px] text-faint mt-2">{t("ln.needData")}</p>
       </Panel>
+
+      <BenchmarkPanel />
 
       {isLoading ? (
         <LoadingState />

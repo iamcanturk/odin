@@ -1,5 +1,6 @@
 """ORM models. Importing this package registers all tables on Base.metadata."""
 
+from app.models.app_setting import AppSetting
 from app.models.associations import EventSource, EventTopic
 from app.models.content_candidate import ContentCandidate
 from app.models.content_item import ContentItem
@@ -22,6 +23,7 @@ __all__ = [
     "EventTopic",
     "LlmUsage",
     "Notification",
+    "AppSetting",
     "ObservedTweet",
     "Post",
     "RunLog",

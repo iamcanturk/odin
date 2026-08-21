@@ -23,6 +23,7 @@ from app.models import (
     StyleReference,
 )
 from app.pipeline.cost import persist_usage
+from app.pipeline.facts import extract_facts, facts_block
 from app.pipeline.xsim import simulate
 from app.providers.base import LLMProvider
 
@@ -192,11 +193,15 @@ def _viral_score(xsim: float, trend: float, personal: float, novelty: float, ris
 def _prompt(event: Event, item_texts: list[str], instruction: str) -> str:
     context = "\n".join(f"- {t}" for t in item_texts[:5] if t)
     summary = event.summary or event.title
+    # Identifiers and scores the model must cite rather than approximate. Empty for
+    # anything non-technical, so nothing gets invented to fill the section.
+    facts = facts_block(extract_facts(event.title, summary, *item_texts[:5]))
     return (
         f"Subject: {event.title}\n"
         f"What is going on: {summary}\n"
         f"Source material:\n{context}\n\n"
-        f"Task: {instruction}\n"
+        + (f"{facts}\n\n" if facts else "")
+        + f"Task: {instruction}\n"
         f"Remember: make it self-contained so anyone understands the subject. Write the post:"
     )
 
@@ -492,6 +497,8 @@ async def refine_text(
     parts = [f"Current post:\n{text}", f"\nInstruction: {instruction}"]
     if context:
         parts.append(f"\nSource material you may draw on:\n{context}")
+        if block := facts_block(extract_facts(context)):
+            parts.append(f"\n{block}")
     parts.append("\nRewrite the post:")
 
     raw = await llm.generate(

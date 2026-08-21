@@ -47,6 +47,19 @@ class Settings(BaseSettings):
     # Shared token the browser extension must send to POST /api/v1/ingest/x. Empty = disabled.
     ingest_token: str = ""
 
+    # Telegram push channel. Empty token disables it entirely — no partial state.
+    telegram_bot_token: str = ""
+    telegram_chat_id: str = ""
+    # Telegram echoes this back as X-Telegram-Bot-Api-Secret-Token on every update.
+    telegram_webhook_secret: str = ""
+    # Where Telegram should send updates, and where the bot's links point.
+    public_base_url: str = "https://odin.iamcanturk.dev"
+
+    # Reddit app-only OAuth. Without these the adapter falls back to the anonymous
+    # JSON endpoint, which 403s from datacenter IPs.
+    reddit_client_id: str = ""
+    reddit_client_secret: str = ""
+
     # Single-user auth. Empty auth_password = auth DISABLED (dev). Set both in prod.
     auth_username: str = "admin"
     auth_password: str = ""

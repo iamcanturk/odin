@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -73,7 +74,9 @@ function DraftCard({ d }: { d: ComposeDraft }) {
 
 export default function ComposePage() {
   const { t, locale } = useI18n();
-  const [topic, setTopic] = useState("");
+  const params = useSearchParams();
+  // Arriving from the feed ("post about this") prefills the subject.
+  const [topic, setTopic] = useState(params.get("topic") ?? "");
   const [lang, setLang] = useState<"tr" | "en">(locale === "en" ? "en" : "tr");
   const [audience, setAudience] = useState<ComposeAudience>("technical");
   const [length, setLength] = useState<ComposeLength>("short");

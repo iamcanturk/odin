@@ -183,6 +183,15 @@ class TesterRequest(BaseModel):
     text: str = Field(min_length=1, max_length=2000)
 
 
+class RepeatMatch(BaseModel):
+    """A past post that already made this point."""
+
+    post_id: str
+    text: str
+    similarity: float
+    days_ago: int | None = None
+
+
 class TesterResponse(BaseModel):
     viral_potential: float
     x_simulation: float
@@ -197,6 +206,7 @@ class TesterResponse(BaseModel):
     weaknesses: list[str]
     scoring_version: str
     disclaimer: str
+    repeats: list[RepeatMatch] = Field(default_factory=list)
 
 
 # ---- Publish workflow ----
@@ -224,6 +234,7 @@ class PostRead(ORMModel):
     origin: str
     angle: str | None = None
     event_id: uuid.UUID | None = None
+    scheduled_for: datetime | None = None
     created_at: datetime
 
 

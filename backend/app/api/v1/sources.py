@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_session
 from app.models import ContentItem, Source
+from app.pipeline.ingest import IngestStats, poll_source
 from app.schemas.api import SourceCreate, SourceRead, SourceUpdate
 
 router = APIRouter(prefix="/sources", tags=["sources"])
@@ -33,6 +34,91 @@ class SourceItem(BaseModel):
     published_at: datetime | None = None
     image: str | None = None
     event_id: uuid.UUID | None = None
+
+
+class DiscoverItem(SourceItem):
+    source_name: str
+    source_category: str | None = None
+
+
+class PollResult(BaseModel):
+    """What one on-demand fetch actually produced."""
+
+    source: str
+    fetched: int
+    errors: list[str] = []
+
+
+@router.post("/{source_id}/poll", response_model=PollResult)
+async def poll_one(
+    source_id: uuid.UUID, session: AsyncSession = Depends(get_session)
+) -> PollResult:
+    """Fetch a single source right now.
+
+    The 15-minute cron polls everything at once, which is useless when you want to see
+    what Reddit or Pinterest has *this second*. Items still go through the normal
+    clustering pass afterwards; this only pulls them in.
+    """
+    source = await session.get(Source, source_id)
+    if source is None:
+        raise HTTPException(status_code=404, detail="Source not found")
+
+    stats = IngestStats()
+    created = await poll_source(session, source, stats)
+    await session.commit()
+    return PollResult(source=source.name, fetched=len(created), errors=stats.errors)
+
+
+@router.get("/discover", response_model=list[DiscoverItem])
+async def discover(
+    session: AsyncSession = Depends(get_session),
+    category: str = Query("", max_length=64),
+    source_id: uuid.UUID | None = Query(None),
+    with_media: bool = Query(False),
+    limit: int = Query(60, ge=1, le=200),
+) -> list[DiscoverItem]:
+    """Browse raw incoming content, by source or category, images included.
+
+    The console shows CLUSTERED events, which is right for spotting opportunities but
+    hides where anything came from — there was no way to just look at what Reddit or
+    Pinterest brought in, or to see the images at all.
+    """
+    stmt = (
+        select(ContentItem, Source)
+        .join(Source, ContentItem.source_id == Source.id)
+        .order_by(ContentItem.published_at.desc().nullslast())
+        .limit(limit)
+    )
+    if source_id is not None:
+        stmt = stmt.where(ContentItem.source_id == source_id)
+    if category.strip():
+        stmt = stmt.where(Source.category == category.strip())
+    if with_media:
+        stmt = stmt.where(ContentItem.media != [])
+
+    out: list[DiscoverItem] = []
+    for item, src in await session.execute(stmt):
+        image = next(
+            (
+                str(m["url"])
+                for m in (item.media or [])
+                if isinstance(m, dict) and m.get("type") == "image" and m.get("url")
+            ),
+            None,
+        )
+        out.append(
+            DiscoverItem(
+                id=item.id,
+                title=item.title,
+                url=item.url,
+                published_at=item.published_at,
+                image=image,
+                event_id=item.event_id,
+                source_name=src.name,
+                source_category=src.category,
+            )
+        )
+    return out
 
 
 @router.get("/{source_id}/items", response_model=list[SourceItem])
