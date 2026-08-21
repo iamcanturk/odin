@@ -60,6 +60,7 @@ export interface EventSummary {
   source_types: string[];
   topics: string[];
   headlines: string[];
+  image: string | null;
 }
 
 export interface EventList {

@@ -87,6 +87,32 @@ async def _matched_topics(
     return out
 
 
+async def _images(
+    session: AsyncSession, event_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, str]:
+    """First image across each event's items — batched, so the feed can show them.
+
+    The detail endpoint has always found one; the list never did, which is why the
+    feed looked like a wall of text next to a raw stream full of pictures.
+    """
+    if not event_ids:
+        return {}
+    rows = await session.execute(
+        select(ContentItem.event_id, ContentItem.media)
+        .where(ContentItem.event_id.in_(event_ids), ContentItem.media != [])
+        .order_by(ContentItem.published_at.desc().nullslast())
+    )
+    out: dict[uuid.UUID, str] = {}
+    for event_id, media in rows:
+        if event_id in out:
+            continue
+        for m in media or []:
+            if isinstance(m, dict) and m.get("type") == "image" and m.get("url"):
+                out[event_id] = str(m["url"])
+                break
+    return out
+
+
 async def _headlines(
     session: AsyncSession, event_ids: list[uuid.UUID]
 ) -> dict[uuid.UUID, list[str]]:
@@ -162,6 +188,7 @@ async def list_events(
     stypes = await _source_types(session, ids)
     etopics = await _matched_topics(session, ids)
     eheadlines = await _headlines(session, ids)
+    eimages = await _images(session, ids)
 
     items = []
     for e in events:
@@ -172,6 +199,7 @@ async def list_events(
         summary.source_types = stypes.get(e.id, [])
         summary.topics = etopics.get(e.id, [])
         summary.headlines = eheadlines.get(e.id, [])
+        summary.image = eimages.get(e.id)
         items.append(summary)
 
     return EventList(total=total, items=items)
