@@ -145,6 +145,7 @@ function scan() {
   }
   if (added > 0) console.debug(`[ODIN] captured ${added} post(s), buffer=${buffer.size}`);
   scheduleSend();
+  ensureHandle();
   scanProfile();
   ensureStyleButton();
   paintVelocityBadges();
@@ -284,6 +285,35 @@ function paintVelocityBadges() {
     badge.style.borderColor = style.color + "66";
     badge.title = `${Math.round(v.vph).toLocaleString()} görüntülenme/saat · ${v.ageHours.toFixed(1)} saatlik`;
   }
+}
+
+// ---- Handle auto-detection ----
+// Typing your @handle into Settings is a step nobody should have to take: the logged-in
+// account is right there in the DOM. Detected once, then stored so later pages are cheap.
+
+function detectOwnHandle() {
+  // The "Profile" nav link points at the logged-in user's own profile.
+  const link =
+    document.querySelector('[data-testid="AppTabBar_Profile_Link"]') ||
+    document.querySelector('a[aria-label="Profile"], a[aria-label="Profil"]');
+  const href = link?.getAttribute("href") || "";
+  const m = href.match(/^\/([A-Za-z0-9_]{1,15})$/);
+  if (m) return m[1].toLowerCase();
+
+  // Fallback: the account switcher exposes the handle as screen-name text.
+  const switcher = document.querySelector('[data-testid="SideNav_AccountSwitcher_Button"]');
+  const at = switcher?.innerText?.match(/@([A-Za-z0-9_]{1,15})/);
+  return at ? at[1].toLowerCase() : null;
+}
+
+async function ensureHandle() {
+  if (!extAlive()) return;
+  const { odinHandle = "" } = await chrome.storage.local.get(["odinHandle"]);
+  if (odinHandle) return; // never override what the user set by hand
+  const detected = detectOwnHandle();
+  if (!detected) return;
+  await chrome.storage.local.set({ odinHandle: `@${detected}` });
+  console.debug(`[ODIN] detected your handle automatically: @${detected}`);
 }
 
 // ---- Profile stats capture (PROJECT.md §12: follower/following over time) ----

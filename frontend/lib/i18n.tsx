@@ -82,6 +82,9 @@ const M: Record<string, { tr: string; en: string }> = {
     tr: "İlk satır her şeyi belirler. 20 açılış üretip xsim ile puanlar.",
     en: "The first line decides everything. Generates 20 openers and scores them with xsim.",
   },
+  "co.useHook": { tr: "Bu kancadan yaz", en: "Write from this hook" },
+  "co.expanding": { tr: "Yazılıyor…", en: "Writing…" },
+  "co.expanded": { tr: "Bu kancadan üretilenler", en: "Written from this hook" },
   "co.critique": { tr: "Eleştiriden geçir", en: "Run critique" },
   "co.critiqueHint": {
     tr: "Şüpheci → Uzman → Kaydıran → Rakip → Editör. Değer önce, cila sonra.",

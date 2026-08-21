@@ -565,6 +565,15 @@ export interface Critique {
   passes: CritiquePass[];
 }
 
+export const expandHook = (body: {
+  hook: string;
+  topic: string;
+  language?: string;
+  length?: ComposeLength;
+  audience?: string;
+  style_handle?: string;
+}) => send<ComposeDraft[]>("/compose/expand", "POST", body);
+
 export const critiqueDraft = (body: { text: string; language?: string }) =>
   send<Critique>("/compose/critique", "POST", body);
 

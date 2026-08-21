@@ -452,6 +452,64 @@ async def refine_text(
     return result
 
 
+async def expand_hook(
+    session: AsyncSession,
+    hook: str,
+    topic: str,
+    llm: LLMProvider,
+    *,
+    language: str = "en",
+    length: str = "short",
+    audience: str = "technical",
+    style_handle: str = "",
+    n: int = 3,
+) -> list[CandidateDraft]:
+    """Write the posts that a chosen hook opens.
+
+    Generating hooks is only half the job — picking one has to lead somewhere. The hook is
+    kept verbatim as the first line so what you scored is what you ship, and the body is
+    written to actually pay it off.
+    """
+    profile = (
+        await session.execute(select(StyleProfile).where(StyleProfile.key == "default"))
+    ).scalar_one_or_none()
+    style = await style_reference_hint(session, style_handle) if style_handle else ""
+    system = _system_for(language, length=length, voice=_voice_hint(profile), style=style)
+    if audience == "general":
+        system += " Write for a general audience: no jargon, explain any term you must use."
+
+    drafts: list[CandidateDraft] = []
+    chosen = list(ANGLES.items())[:n]
+    for angle, (instruction, novelty, risk) in chosen:
+        raw = await llm.generate(
+            f"Subject: {topic}\n\n"
+            f"Opening line (use it VERBATIM as the first line, do not rewrite it):\n{hook}\n\n"
+            f"Task: {instruction}\n"
+            "Continue from that opening and pay off what it promises. "
+            "The post must stand on its own. Write the full post:",
+            system=system,
+            temperature=0.8,
+            max_tokens=_max_tokens(length),
+        )
+        text = _sanitize(raw)
+        xsim = simulate(text).sim_score
+        drafts.append(
+            CandidateDraft(
+                text=text, angle=angle, platform="x",
+                trend_score=0.0, personal_score=0.0, source_confidence=0.0,
+                novelty_score=novelty, risk_score=risk,
+                viral_score=_viral_score(xsim, 0.0, 0.0, novelty, risk),
+            )
+        )
+
+    drafts.sort(key=lambda d: d.viral_score, reverse=True)
+    for i, d in enumerate(drafts, start=1):
+        d.rank = i
+    await persist_usage(session, purpose="expand")
+    await session.commit()
+    return drafts
+
+
 async def compose_freeform(
     session: AsyncSession,
     topic: str,

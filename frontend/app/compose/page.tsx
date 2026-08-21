@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   compose,
   critiqueDraft,
+  expandHook,
   fetchStyleRefs,
   generateHooks,
   type ComposeAudience,
@@ -219,7 +220,12 @@ export default function ComposePage() {
 /** The first line does nearly all the work, so explore it densely and score it. */
 function HooksPanel({ topic, lang }: { topic: string; lang: "tr" | "en" }) {
   const { t } = useI18n();
+  const [chosen, setChosen] = useState("");
   const gen = useMutation({ mutationFn: () => generateHooks({ topic, language: lang }) });
+  // Picking a hook has to lead somewhere — expand it into the full post it opens.
+  const expand = useMutation({
+    mutationFn: (hook: string) => expandHook({ hook, topic, language: lang }),
+  });
   const hooks: Hook[] = gen.data ?? [];
 
   return (
@@ -240,20 +246,50 @@ function HooksPanel({ topic, lang }: { topic: string; lang: "tr" | "en" }) {
       {gen.error && <p className="text-hot text-xs mt-2">{(gen.error as Error).message}</p>}
       {hooks.length > 0 && (
         <div className="flex flex-col gap-1.5 mt-3">
-          {hooks.map((h) => (
-            <div
-              key={h.rank}
-              className="flex items-start gap-3 rounded-md border border-border-soft bg-panel-2/50 px-3 py-2"
-            >
-              <span className="font-mono text-[10px] text-faint tabular-nums pt-0.5">
-                {String(h.rank).padStart(2, "0")}
-              </span>
-              <p className="text-sm text-text flex-1">{h.text}</p>
-              <span className="font-mono text-xs tabular-nums text-accent">
-                {h.xsim_score.toFixed(0)}
-              </span>
-            </div>
-          ))}
+          {hooks.map((h) => {
+            const active = chosen === h.text;
+            return (
+              <div
+                key={h.rank}
+                className={`rounded-md border px-3 py-2 transition-colors ${
+                  active ? "border-accent/60 bg-accent/5" : "border-border-soft bg-panel-2/50"
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  <span className="font-mono text-[10px] text-faint tabular-nums pt-0.5">
+                    {String(h.rank).padStart(2, "0")}
+                  </span>
+                  <p className="text-sm text-text flex-1">{h.text}</p>
+                  <span className="font-mono text-xs tabular-nums text-accent">
+                    {h.xsim_score.toFixed(0)}
+                  </span>
+                </div>
+                <button
+                  onClick={() => {
+                    setChosen(h.text);
+                    expand.mutate(h.text);
+                  }}
+                  disabled={expand.isPending}
+                  className="mt-2 rounded border border-good/50 px-2 py-1 text-[11px] text-good hover:bg-good/10 disabled:opacity-40 transition-colors"
+                >
+                  {expand.isPending && active ? t("co.expanding") : t("co.useHook")}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {expand.data && expand.data.length > 0 && (
+        <div className="mt-4 border-t border-border-soft pt-3">
+          <p className="text-[10px] uppercase tracking-widest text-muted mb-2">
+            {t("co.expanded")}
+          </p>
+          <div className="grid gap-3">
+            {expand.data.map((d, i) => (
+              <DraftCard key={i} d={d} />
+            ))}
+          </div>
         </div>
       )}
     </Panel>
