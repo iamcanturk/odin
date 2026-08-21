@@ -3,8 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { fetchSystemStatus } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
-import { ErrorState, LoadingState, PageHeader, Panel } from "@/components/ui";
-import { CadencePanel } from "@/components/CadencePanel";
+import { ErrorState, LoadingState, Panel } from "@/components/ui";
 
 function money(v: number): string {
   return `$${v.toFixed(v < 1 ? 4 : 2)}`;
@@ -23,7 +22,7 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
-export default function SystemPage() {
+export function SystemPanel() {
   const { t } = useI18n();
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["system"],
@@ -33,9 +32,7 @@ export default function SystemPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title={t("sys.title")} subtitle={t("sys.subtitle")} />
 
-      <CadencePanel editable />
 
       {isLoading && <LoadingState />}
       {error && <ErrorState message={(error as Error).message} onRetry={() => refetch()} />}

@@ -11,7 +11,7 @@ import {
   type Source,
 } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
-import { EmptyState, ErrorState, LoadingState, PageHeader, Panel } from "@/components/ui";
+import { EmptyState, ErrorState, LoadingState, Panel } from "@/components/ui";
 
 function health(s: Source, t: (k: string) => string): { label: string; color: string } {
   if (!s.enabled) return { label: "off", color: "var(--muted)" };
@@ -124,7 +124,7 @@ function SourceItems({ id }: { id: string }) {
   );
 }
 
-export default function SourcesPage() {
+export function SourcesPanel() {
   const { t } = useI18n();
   const qc = useQueryClient();
   const { data, isLoading, error, refetch } = useQuery({
@@ -145,7 +145,6 @@ export default function SourcesPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title={t("src.title")} subtitle={t("src.subtitle")} />
 
       <Panel className="p-4">
         <div className="grid gap-3 sm:grid-cols-[1fr_2fr_auto] items-end">

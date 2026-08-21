@@ -811,3 +811,6 @@ export const fetchCadence = () => getJSON<Cadence>("/system/cadence");
 
 export const setWeeklyGoal = (goal: number) =>
   send<Cadence>("/system/cadence/goal", "PUT", { goal });
+
+export const createPost = (body: { text: string; angle?: string; event_id?: string }) =>
+  send<Post>("/posts", "POST", body);

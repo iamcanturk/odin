@@ -52,12 +52,15 @@ export function ScoreMeter({ label, score }: { label: string; score: number }) {
 export function Panel({
   children,
   className = "",
+  onClick,
 }: {
   children: React.ReactNode;
   className?: string;
+  onClick?: () => void;
 }) {
   return (
     <div
+      onClick={onClick}
       className={`rounded-[var(--radius)] border border-border bg-panel/70 backdrop-blur-sm shadow-[var(--shadow)] ${className}`}
     >
       {children}

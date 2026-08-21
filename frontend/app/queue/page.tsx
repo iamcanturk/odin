@@ -48,9 +48,12 @@ function DraftRow({ post }: { post: Post }) {
   return (
     <Panel className="p-4">
       <div className="flex items-center gap-2">
-        <span className="text-[10px] font-mono uppercase tracking-widest text-accent">
-          {post.angle ?? "draft"}
-        </span>
+        {/* Only when there IS an angle — otherwise it reads "DRAFT DRAFT" beside the status. */}
+        {post.angle && (
+          <span className="text-[10px] font-mono uppercase tracking-widest text-accent">
+            {post.angle}
+          </span>
+        )}
         <span
           className={`text-[10px] font-mono uppercase tracking-widest ${posted ? "text-good" : "text-warn"}`}
         >
@@ -153,30 +156,59 @@ function DraftRow({ post }: { post: Post }) {
   );
 }
 
-export default function DraftsPage() {
+export default function QueuePage() {
   const { t } = useI18n();
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["posts", "queue"],
     queryFn: () => fetchPosts(),
   });
-  const drafts = (data ?? []).filter((p) => p.origin === "generated");
+
+  const all = (data ?? []).filter((p) => p.origin === "generated");
+  // Grouped by where a draft actually is, not by an arbitrary sort. Scheduled first
+  // because those have a deadline attached.
+  const scheduled = all
+    .filter((p) => p.scheduled_for && p.status !== "posted")
+    .sort((a, b) => (a.scheduled_for ?? "").localeCompare(b.scheduled_for ?? ""));
+  const drafts = all.filter((p) => !p.scheduled_for && p.status !== "posted");
+  const posted = all
+    .filter((p) => p.status === "posted")
+    .sort((a, b) => b.created_at.localeCompare(a.created_at))
+    .slice(0, 20);
+
+  const groups: { key: string; items: typeof all }[] = [
+    { key: "qp.scheduled", items: scheduled },
+    { key: "qp.drafts", items: drafts },
+    { key: "qp.posted", items: posted },
+  ];
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title={t("df.title")} subtitle={t("df.subtitle")} />
+      <PageHeader title={t("qp.title")} subtitle={t("qp.subtitle")} />
 
       {isLoading ? (
         <LoadingState />
       ) : error ? (
         <ErrorState message={(error as Error).message} onRetry={() => refetch()} />
-      ) : drafts.length === 0 ? (
+      ) : all.length === 0 ? (
         <EmptyState label={t("df.empty")} />
       ) : (
-        <div className="grid gap-3">
-          {drafts.map((p) => (
-            <DraftRow key={p.id} post={p} />
-          ))}
-        </div>
+        groups
+          .filter((g) => g.items.length > 0)
+          .map((g) => (
+            <section key={g.key} className="flex flex-col gap-3">
+              <div className="flex items-baseline gap-3">
+                <h2 className="text-sm font-semibold tracking-tight">{t(g.key)}</h2>
+                <span className="font-mono text-xs text-faint tabular-nums">
+                  {g.items.length}
+                </span>
+              </div>
+              <div className="grid gap-3">
+                {g.items.map((p) => (
+                  <DraftRow key={p.id} post={p} />
+                ))}
+              </div>
+            </section>
+          ))
       )}
     </div>
   );
