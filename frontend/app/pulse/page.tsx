@@ -137,7 +137,8 @@ function Row({ t }: { t: PulseTweet }) {
 export default function PulsePage() {
   const { t } = useI18n();
   const [tier, setTier] = useState<"cold" | "warm" | "hot">("cold");
-  const [relevantOnly, setRelevantOnly] = useState(false);
+  // Relevance on by default: unfiltered, global viral humour drowns out your niche.
+  const [relevantOnly, setRelevantOnly] = useState(true);
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["pulse", tier, relevantOnly],
     queryFn: () => fetchPulse({ minTier: tier, relevantOnly }),
@@ -181,7 +182,9 @@ export default function PulsePage() {
         }
       />
 
-      <p className="text-[11px] text-faint -mt-2">{t("pl.replyHint")}</p>
+      <p className="text-[11px] text-faint -mt-2">
+        {relevantOnly ? t("pl.relevanceHint") : t("pl.replyHint")}
+      </p>
 
       {data && (
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">

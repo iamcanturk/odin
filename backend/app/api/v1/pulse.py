@@ -74,7 +74,7 @@ async def get_pulse(
     limit: int = Query(25, ge=1, le=100),
     min_tier: str = Query("cold", pattern="^(cold|warm|hot)$"),
     min_views: int = Query(MIN_VIEWS, ge=0),
-    relevant_only: bool = Query(False),
+    relevant_only: bool = Query(True),
 ) -> PulseSummary:
     """What is spiking on X, filtered down to things actually worth reacting to.
 
@@ -86,6 +86,10 @@ async def get_pulse(
     cutoff = now - timedelta(hours=window_hours)
 
     own = await _own_handles(session)
+    # Relevance is the DEFAULT, not an option. Ranking purely by views/hour surfaces
+    # mass-appeal humour — a meme at 700k views/hour will always beat a Docker post at
+    # 5k, which is useless for a niche account. Falls back to everything when no topics
+    # are configured, so the page is never mysteriously empty.
     topic_words = await _topic_keywords(session) if relevant_only else set()
 
     # Only the most recent sighting of each tweet — that's its current standing.

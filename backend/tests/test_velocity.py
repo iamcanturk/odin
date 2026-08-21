@@ -217,8 +217,9 @@ async def test_pulse_can_filter_to_your_topics(
         session.add(ObservedTweet(external_id="off", text="Bugün hava çok güzel", **base))
         await session.commit()
 
-    everything = (await client.get("/api/v1/pulse")).json()
-    assert len(everything["items"]) == 2
-
-    relevant = (await client.get("/api/v1/pulse", params={"relevant_only": "true"})).json()
+    # Relevance is the default: off-topic viral content is not an opportunity for you.
+    relevant = (await client.get("/api/v1/pulse")).json()
     assert [i["external_id"] for i in relevant["items"]] == ["rel"]
+
+    everything = (await client.get("/api/v1/pulse", params={"relevant_only": "false"})).json()
+    assert len(everything["items"]) == 2

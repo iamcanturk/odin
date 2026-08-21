@@ -151,6 +151,10 @@ const M: Record<string, { tr: string; en: string }> = {
   "src.hideItems": { tr: "Gizle", en: "Hide" },
   "src.noItems": { tr: "Bu kaynaktan henüz içerik yok.", en: "Nothing from this source yet." },
   "pl.relevantOnly": { tr: "Sadece konularım", en: "My topics only" },
+  "pl.relevanceHint": {
+    tr: "Konularınla eşleşenler gösteriliyor. Ham hıza göre sıralasak viral mizah her şeyi bastırırdı.",
+    en: "Filtered to your topics. Ranking purely by speed would let viral humour drown everything out.",
+  },
   "ln.how": { tr: "Bu sayfa ne yapıyor?", en: "What is this page?" },
   "ln.howBody": {
     tr: "Bir taslağı onayladığında ODIN o an ne kadar beğeni alacağını tahmin eder ve bu tahmini değiştirilemez şekilde kaydeder. Tweeti paylaşıp gerçek sayılar geldiğinde ikisini karşılaştırır. MAE ortalama sapma, RMSE büyük hataları daha ağır cezalandırır, Precision@3 ise 'en iyi 3 tahminim gerçekten en iyi 3 çıktı mı' sorusunu ölçer. Kalibrasyon katsayısı bu hatayı bir sonraki tahmine otomatik uygular; yani model kendini düzeltir.",
