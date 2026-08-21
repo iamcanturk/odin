@@ -158,3 +158,65 @@ async def test_tweets_list_includes_published_drafts(
     texts = [t["text"] for t in (await client.get("/api/v1/profile/tweets")).json()]
     assert "published from a draft" in texts
     assert "still a draft" not in texts
+
+
+async def test_profile_captures_bio_and_identity(
+    db_sessionmaker, client: httpx.AsyncClient
+) -> None:
+    headers = {"X-Ingest-Token": "secret"}
+    payload = {
+        "handle": "@me", "followers": 590, "following": 619, "tweets": 258,
+        "display_name": "Can Türk", "bio": "Yazılımcı. Docker, güvenlik, açık kaynak.",
+        "location": "İstanbul", "website": "https://example.com",
+    }
+    assert (await client.post("/api/v1/ingest/x/profile", json=payload, headers=headers)).json()[
+        "stored"
+    ] is True
+
+    async with db_sessionmaker() as session:
+        snap = (await session.execute(select(ProfileSnapshot))).scalar_one()
+        assert snap.display_name == "Can Türk"
+        assert "Docker" in snap.bio
+        assert snap.location == "İstanbul"
+
+
+async def test_a_bio_rewrite_counts_as_a_change(client: httpx.AsyncClient) -> None:
+    """Counts can be identical while the bio changed — that's still new information."""
+    headers = {"X-Ingest-Token": "secret"}
+    base = {"handle": "@me", "followers": 10, "following": 5, "tweets": 3, "bio": "eski bio"}
+    assert (await client.post("/api/v1/ingest/x/profile", json=base, headers=headers)).json()[
+        "stored"
+    ] is True
+    # Same numbers, same bio -> deduped.
+    assert (await client.post("/api/v1/ingest/x/profile", json=base, headers=headers)).json()[
+        "stored"
+    ] is False
+    # Same numbers, new bio -> stored.
+    changed = {**base, "bio": "yeni bio"}
+    assert (await client.post("/api/v1/ingest/x/profile", json=changed, headers=headers)).json()[
+        "stored"
+    ] is True
+
+
+async def test_bio_is_given_to_the_generator(db_sessionmaker) -> None:
+    """Your bio is your positioning; posts should stay consistent with it."""
+    from app.pipeline.content import bio_hint
+
+    async with db_sessionmaker() as session:
+        session.add(
+            ProfileSnapshot(
+                handle="me", display_name="Can", bio="Docker ve güvenlik üzerine yazıyorum."
+            )
+        )
+        await session.commit()
+        hint = await bio_hint(session)
+
+    assert "Can" in hint
+    assert "Docker ve güvenlik" in hint
+
+
+async def test_no_bio_yields_no_hint(db_sessionmaker) -> None:
+    from app.pipeline.content import bio_hint
+
+    async with db_sessionmaker() as session:
+        assert await bio_hint(session) == ""

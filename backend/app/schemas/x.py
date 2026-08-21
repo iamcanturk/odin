@@ -65,3 +65,7 @@ class XProfileIngest(BaseModel):
     followers: int | None = None
     following: int | None = None
     tweets: int | None = None
+    display_name: str | None = Field(default=None, max_length=200)
+    bio: str | None = Field(default=None, max_length=2000)
+    location: str | None = Field(default=None, max_length=200)
+    website: str | None = Field(default=None, max_length=500)

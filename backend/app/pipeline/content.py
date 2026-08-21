@@ -13,7 +13,14 @@ from dataclasses import dataclass
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import ContentCandidate, ContentItem, Event, StyleProfile, StyleReference
+from app.models import (
+    ContentCandidate,
+    ContentItem,
+    Event,
+    ProfileSnapshot,
+    StyleProfile,
+    StyleReference,
+)
 from app.pipeline.cost import persist_usage
 from app.pipeline.xsim import simulate
 from app.providers.base import LLMProvider
@@ -101,6 +108,26 @@ def _voice_hint(profile: StyleProfile | None) -> str:
     if bits:
         bits.append("Match this voice without copying past posts verbatim.")
     return " ".join(bits)
+
+
+async def bio_hint(session: AsyncSession) -> str:
+    """Your own bio, as context for the generator.
+
+    It's the one place you state who you are and what you're about, which is exactly the
+    positioning a post should be consistent with.
+    """
+    row = (
+        await session.execute(
+            select(ProfileSnapshot)
+            .where(ProfileSnapshot.bio.is_not(None))
+            .order_by(ProfileSnapshot.captured_at.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    if row is None or not (row.bio or "").strip():
+        return ""
+    who = row.display_name or f"@{row.handle}"
+    return f"The author is {who}. Their bio: \"{row.bio.strip()}\". Stay consistent with it."
 
 
 async def style_reference_hint(session: AsyncSession, handle: str, *, n: int = 6) -> str:
@@ -593,6 +620,7 @@ async def create_candidates(
         await session.execute(select(StyleProfile).where(StyleProfile.key == "default"))
     ).scalar_one_or_none()
     style = await style_reference_hint(session, style_handle) if style_handle else ""
+    voice = " ".join(x for x in (_voice_hint(profile), await bio_hint(session)) if x)
 
     drafts = await generate_candidates(
         event,
@@ -602,7 +630,7 @@ async def create_candidates(
         language=language,
         angles=angles,
         length=length,
-        voice=_voice_hint(profile),
+        voice=voice,
         style=style,
     )
 
