@@ -11,6 +11,7 @@ class SourceType(StrEnum):
     GITHUB = "github"
     REDDIT = "reddit"
     X = "x"
+    CISA_KEV = "cisa_kev"
 
 
 class Priority(StrEnum):
