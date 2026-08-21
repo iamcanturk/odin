@@ -223,3 +223,25 @@ async def test_pulse_can_filter_to_your_topics(
 
     everything = (await client.get("/api/v1/pulse", params={"relevant_only": "false"})).json()
     assert len(everything["items"]) == 2
+
+
+def test_topic_keywords_match_words_not_substrings() -> None:
+    """Short keywords like 'ai' and 'ide' fired constantly under plain substring matching.
+
+    'Buena idea' matched 'ide', 'said again' matched 'ai', and obvious junk passed the
+    relevance filter as a result.
+    """
+    from app.api.v1.pulse import _matches_topics, _topic_pattern
+
+    pattern = _topic_pattern({"ai", "ide", "api", "docker", "llm"})
+    for junk in ("Buena idea, no se vayan", "He said again via email", "Yapay zeka hakkında"):
+        assert not _matches_topics(junk, pattern)
+    for real in ("New AI model released", "My IDE keeps crashing", "api gateway design"):
+        assert _matches_topics(real, pattern)
+
+
+def test_no_topics_means_no_pattern() -> None:
+    from app.api.v1.pulse import _matches_topics, _topic_pattern
+
+    assert _topic_pattern(set()) is None
+    assert _matches_topics("anything", None) is False

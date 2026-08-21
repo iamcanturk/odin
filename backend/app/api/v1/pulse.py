@@ -7,6 +7,7 @@ accelerating post borrows its distribution.
 
 from __future__ import annotations
 
+import re
 from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, Query
@@ -39,9 +40,21 @@ async def _topic_keywords(session: AsyncSession) -> set[str]:
     return words
 
 
-def _matches_topics(text: str, words: set[str]) -> bool:
-    low = (text or "").lower()
-    return any(w in low for w in words)
+def _topic_pattern(words: set[str]) -> re.Pattern[str] | None:
+    """Match keywords as WORDS, not substrings.
+
+    Plain `in` matching let 3-letter keywords fire constantly: "ide" matched "Buena idea"
+    and "ai" matched ordinary words, so the relevance filter passed obvious junk. Unicode
+    boundaries, so Turkish words aren't split at their non-ASCII letters.
+    """
+    if not words:
+        return None
+    alts = "|".join(re.escape(w) for w in sorted(words, key=len, reverse=True))
+    return re.compile(rf"(?<![^\W\d_])(?:{alts})(?![^\W\d_])", re.IGNORECASE | re.UNICODE)
+
+
+def _matches_topics(text: str, pattern: re.Pattern[str] | None) -> bool:
+    return bool(pattern and pattern.search(text or ""))
 
 
 class PulseTweet(BaseModel):
@@ -90,7 +103,7 @@ async def get_pulse(
     # mass-appeal humour — a meme at 700k views/hour will always beat a Docker post at
     # 5k, which is useless for a niche account. Falls back to everything when no topics
     # are configured, so the page is never mysteriously empty.
-    topic_words = await _topic_keywords(session) if relevant_only else set()
+    topic_pattern = _topic_pattern(await _topic_keywords(session)) if relevant_only else None
 
     # Only the most recent sighting of each tweet — that's its current standing.
     latest = (
@@ -127,7 +140,7 @@ async def get_pulse(
         # Your own posts belong on the profile page, not in "what's happening".
         if t.author_handle and t.author_handle.lower() in own:
             continue
-        if topic_words and not _matches_topics(t.text, topic_words):
+        if topic_pattern is not None and not _matches_topics(t.text, topic_pattern):
             continue
         v = compute_velocity(
             impressions=t.impressions,
