@@ -52,6 +52,32 @@ class SlotRead(BaseModel):
     reason: str
 
 
+class PostCreate(BaseModel):
+    """Save composed text as a draft — the step between generating and queueing."""
+
+    text: str = Field(min_length=1, max_length=10000)
+    angle: str | None = Field(default=None, max_length=32)
+    event_id: uuid.UUID | None = None
+
+
+@router.post("", response_model=PostRead, status_code=201)
+async def create_post(
+    payload: PostCreate, session: AsyncSession = Depends(get_session)
+) -> Post:
+    post = Post(
+        platform="x",
+        text=payload.text,
+        status="draft",
+        origin="generated",
+        angle=payload.angle,
+        event_id=payload.event_id,
+    )
+    session.add(post)
+    await session.commit()
+    await session.refresh(post)
+    return post
+
+
 @router.get("/slot", response_model=SlotRead)
 async def next_slot(session: AsyncSession = Depends(get_session)) -> SlotRead:
     """The next occurrence of your best posting hour, or why we can't name one."""

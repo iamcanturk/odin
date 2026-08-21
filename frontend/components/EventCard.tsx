@@ -26,17 +26,28 @@ export function EventCard({
   event,
   rank,
   onDismiss,
+  onSelect,
 }: {
   event: EventSummary;
   rank: number;
   onDismiss?: (id: string) => void;
+  /**
+   * In the feed the card's job is to load this event into the composer beside it,
+   * not to navigate away — losing the thing you were looking at is the whole
+   * problem the merged layout exists to fix. The detail page stays reachable
+   * through an explicit link.
+   */
+  onSelect?: (event: EventSummary) => void;
 }) {
   const { t } = useI18n();
   const forYou = event.topics.length > 0;
-  return (
-    <Link href={`/events/${event.id}`} className="block group">
+
+  const body = (
       <Panel
-        className={`relative p-4 transition-colors group-hover:border-accent/50 ${forYou ? "border-l-2 border-l-good" : ""}`}
+        onClick={onSelect ? () => onSelect(event) : undefined}
+        className={`relative p-4 transition-colors group-hover:border-accent/50 ${
+          onSelect ? "cursor-pointer" : ""
+        } ${forYou ? "border-l-2 border-l-good" : ""}`}
       >
         {onDismiss && (
           <button
@@ -103,13 +114,29 @@ export function EventCard({
                   ))}
               </ul>
             )}
-            <div className="flex flex-wrap gap-x-6 gap-y-2 mt-3">
+            <div className="flex flex-wrap items-end gap-x-6 gap-y-2 mt-3">
               <ScoreMeter label={t("ev.trend")} score={event.trend_score} />
               <ScoreMeter label={t("pn.opp")} score={event.opportunity_score} />
+              {onSelect && (
+                <Link
+                  href={`/events/${event.id}`}
+                  onClick={(e) => e.stopPropagation()}
+                  className="ml-auto text-[11px] text-faint hover:text-accent transition-colors"
+                >
+                  {t("ev.detail")} →
+                </Link>
+              )}
             </div>
           </div>
         </div>
       </Panel>
+  );
+
+  return onSelect ? (
+    <div className="group">{body}</div>
+  ) : (
+    <Link href={`/events/${event.id}`} className="block group">
+      {body}
     </Link>
   );
 }

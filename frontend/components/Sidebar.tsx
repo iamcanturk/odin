@@ -7,15 +7,10 @@ import { useQuery } from "@tanstack/react-query";
 import { clearToken, fetchUnreadCount } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import {
-  IconBeaker,
   IconBell,
-  IconBolt,
   IconClose,
   IconDraft,
-  IconFeed,
   IconGauge,
-  IconGraph,
-  IconHash,
   IconMenu,
   IconPower,
   IconRadar,
@@ -26,35 +21,17 @@ type Icon = ComponentType<SVGProps<SVGSVGElement>>;
 type NavItem = { href: string; key: string; icon: Icon };
 type NavGroup = { labelKey?: string; items: NavItem[] };
 
+// Four entries, because the app has four jobs: find something worth posting about,
+// see how it went, deal with what you've already written, and configure the machine.
+// Everything else that used to be a page is now a tab or a panel inside one of these.
 const GROUPS: NavGroup[] = [
   {
     items: [
-      { href: "/", key: "nav.console", icon: IconRadar },
-      { href: "/compose", key: "nav.compose", icon: IconDraft },
-      { href: "/pulse", key: "nav.pulse", icon: IconGraph },
-      { href: "/discover", key: "nav.discover", icon: IconFeed },
-      { href: "/post-now", key: "nav.postNow", icon: IconBolt },
+      { href: "/", key: "nav.feed", icon: IconRadar },
+      { href: "/queue", key: "nav.queue", icon: IconDraft },
+      { href: "/you", key: "nav.you", icon: IconUser },
+      { href: "/settings", key: "nav.settings", icon: IconGauge },
     ],
-  },
-  {
-    labelKey: "nav.grp.discover",
-    items: [
-      { href: "/topics", key: "nav.topics", icon: IconHash },
-      { href: "/sources", key: "nav.sources", icon: IconFeed },
-      { href: "/tester", key: "nav.tester", icon: IconBeaker },
-    ],
-  },
-  {
-    labelKey: "nav.grp.you",
-    items: [
-      { href: "/profile", key: "nav.profile", icon: IconUser },
-      { href: "/drafts", key: "nav.drafts", icon: IconDraft },
-      { href: "/learning", key: "nav.learning", icon: IconGraph },
-    ],
-  },
-  {
-    labelKey: "nav.grp.system",
-    items: [{ href: "/system", key: "nav.system", icon: IconGauge }],
   },
 ];
 
