@@ -47,6 +47,13 @@ DEFAULT_SOURCES = [
     {"name": "SecurityWeek", "type": SourceType.RSS,
      "url": "https://www.securityweek.com/feed/", "category": "security",
      "priority": Priority.MEDIUM, "confidence": 0.88},
+    # CVEs. KEV is the high-signal one: vulnerabilities under ACTIVE exploitation, not
+    # the thousands published monthly that nobody ever attacks.
+    {"name": "CISA Known Exploited Vulns", "type": SourceType.CISA_KEV, "url": None,
+     "category": "cve", "priority": Priority.HIGH, "confidence": 0.98},
+    {"name": "High-severity CVEs", "type": SourceType.RSS,
+     "url": "https://cvefeed.io/rssfeed/severity/high.xml", "category": "cve",
+     "priority": Priority.MEDIUM, "confidence": 0.75},
     # Turkish tech sources
     {"name": "Webtekno", "type": SourceType.RSS, "url": "https://www.webtekno.com/rss.xml",
      "category": "technology", "priority": Priority.MEDIUM, "confidence": 0.8},

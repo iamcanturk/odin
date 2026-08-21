@@ -33,6 +33,7 @@ from app.pipeline.topics import apply_topic_matching
 from app.pipeline.trend import Mention, advance_status, compute_trend
 from app.providers.base import EmbeddingProvider, LLMProvider
 from app.sources.base import SourceAdapter
+from app.sources.cisa_kev import CISAKevAdapter
 from app.sources.github import GitHubAdapter
 from app.sources.hackernews import HackerNewsAdapter
 from app.sources.reddit import RedditAdapter, parse_subreddits
@@ -62,6 +63,8 @@ def build_adapter(source: Source) -> SourceAdapter | None:
         return RedditAdapter(parse_subreddits(source.url))
     if source.type == "github":
         return GitHubAdapter()
+    if source.type == "cisa_kev":
+        return CISAKevAdapter()
     return None
 
 
