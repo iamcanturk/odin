@@ -232,6 +232,26 @@ def _attach(
     event.last_seen_at = max(event.last_seen_at, ci.timestamp)
 
 
+async def apply_categories(session: AsyncSession, events: set[Event]) -> None:
+    """Label each event with the category of the sources that reported it.
+
+    Derived rather than LLM-classified: sources already carry a curated category, it costs
+    nothing, and it's deterministic. Ties break toward the higher-confidence source.
+    """
+    for event in events:
+        rows = await session.execute(
+            select(Source.category, Source.confidence)
+            .join(ContentItem, ContentItem.source_id == Source.id)
+            .where(ContentItem.event_id == event.id)
+        )
+        weights: dict[str, float] = {}
+        for category, confidence in rows:
+            if category:
+                weights[category] = weights.get(category, 0.0) + (confidence or 0.5)
+        if weights:
+            event.category = max(weights, key=lambda k: weights[k])
+
+
 async def score_events(
     session: AsyncSession, events: set[Event], stats: IngestStats, *, now: datetime
 ) -> None:
@@ -285,6 +305,7 @@ async def process_new_items(
     await embed_items(new_items, embedder)
     affected = await assign_events(session, new_items, stats, now=now)
     await score_events(session, affected, stats, now=now)
+    await apply_categories(session, affected)
     await apply_topic_matching(session, list(affected), embedder)
     await apply_opportunity(session, list(affected), now=now)
     if llm is not None:

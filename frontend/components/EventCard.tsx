@@ -67,6 +67,11 @@ export function EventCard({
                   {SOURCE_LABEL[s] ?? s}
                 </span>
               ))}
+              {event.category && (
+                <span className="rounded border border-border px-1.5 py-0.5 text-[10px] uppercase text-faint">
+                  {event.category}
+                </span>
+              )}
               {event.topics.map((tp) => (
                 <span
                   key={tp}
@@ -80,7 +85,7 @@ export function EventCard({
               </span>
             </div>
             <h3 className="mt-1.5 text-[15px] font-medium text-text truncate group-hover:text-accent transition-colors">
-              {event.title}
+              {event.title_local || event.title}
             </h3>
             {event.summary && (
               <p className="text-sm text-muted mt-1 line-clamp-2">{event.summary}</p>

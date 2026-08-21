@@ -45,6 +45,8 @@ export type EventStatus =
 export interface EventSummary {
   id: string;
   title: string;
+  title_local: string | null;
+  category: string | null;
   summary: string | null;
   status: EventStatus;
   trend_score: number;
@@ -107,6 +109,7 @@ export function fetchEvents(params?: {
   orderBy?: string;
   minTrend?: number;
   q?: string;
+  category?: string;
 }): Promise<EventList> {
   const qs = new URLSearchParams();
   qs.set("limit", String(params?.limit ?? 50));
@@ -114,6 +117,7 @@ export function fetchEvents(params?: {
   if (params?.orderBy) qs.set("order_by", params.orderBy);
   if (params?.minTrend) qs.set("min_trend", String(params.minTrend));
   if (params?.q?.trim()) qs.set("q", params.q.trim());
+  if (params?.category?.trim()) qs.set("category", params.category.trim());
   return getJSON<EventList>(`/events?${qs.toString()}`);
 }
 

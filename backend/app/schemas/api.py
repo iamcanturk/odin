@@ -36,6 +36,8 @@ class TokenResponse(BaseModel):
 class EventSummary(ORMModel):
     id: uuid.UUID
     title: str
+    title_local: str | None = None
+    category: str | None = None
     summary: str | None = None
     status: str
     trend_score: float

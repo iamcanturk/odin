@@ -25,7 +25,13 @@ class Event(TimestampMixin, Base):
 
     id: Mapped[uuid.UUID] = uuid_pk()
     title: Mapped[str] = mapped_column(String(1000), nullable=False)
+    # Headline in the user's content language. The original title stays untouched so the
+    # source is always verifiable; the console shows this when present.
+    title_local: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Derived from the categories of the sources that reported it (technology, security,
+    # ai, trends, ...). Cheap, deterministic, and what the console filters on.
+    category: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
 
     status: Mapped[str] = mapped_column(
         String(16), nullable=False, default=EventStatus.DISCOVERED, index=True

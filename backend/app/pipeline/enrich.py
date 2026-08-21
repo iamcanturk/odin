@@ -20,7 +20,8 @@ log = get_logger("odin.enrich")
 
 _SYSTEM = (
     "You are an analyst. Given a news event and its sources, reply with STRICT JSON: "
-    '{"summary": "<2-3 sentence neutral summary>", "entities": ["<named entity>", ...]}. '
+    '{"title": "<a short, factual headline, max 90 chars>", '
+    '"summary": "<2-3 sentence neutral summary>", "entities": ["<named entity>", ...]}. '
     "No markdown, no prose outside the JSON."
 )
 
@@ -31,7 +32,10 @@ HOT_STATUSES = {EventStatus.RISING, EventStatus.TRENDING}
 
 def _system_for(language: str) -> str:
     name = _LANG_NAME.get(language, "English")
-    return f"{_SYSTEM} Write the summary in {name}. Keep entity names as-is."
+    return (
+        f"{_SYSTEM} Write BOTH the title and the summary in {name}. "
+        "Keep product, company and person names as-is — do not translate them."
+    )
 
 
 def should_enrich(event: Event, threshold: float, *, has_topic: bool = False) -> bool:
@@ -55,29 +59,34 @@ def build_prompt(title: str, item_texts: list[str]) -> str:
     return f"Event title: {title}\n\nWhat sources are saying:\n{joined}\n\nReturn the JSON."
 
 
-def parse_enrichment(raw: str) -> tuple[str | None, list[str]]:
-    """Extract (summary, entities) from an LLM reply; tolerate fences / junk."""
+def parse_enrichment(raw: str) -> tuple[str | None, list[str], str | None]:
+    """Extract (summary, entities, title) from an LLM reply; tolerate fences / junk."""
     text = raw.strip()
     if text.startswith("```"):
         text = text.strip("`")
         text = text[text.find("{") :] if "{" in text else text
     start, end = text.find("{"), text.rfind("}")
     if start == -1 or end == -1 or end < start:
-        return None, []
+        return None, [], None
     try:
         data = json.loads(text[start : end + 1])
     except json.JSONDecodeError:
-        return None, []
+        return None, [], None
     summary = data.get("summary")
     entities = data.get("entities") or []
     if not isinstance(entities, list):
         entities = []
-    return (summary if isinstance(summary, str) else None), [str(e) for e in entities]
+    title = data.get("title")
+    return (
+        summary if isinstance(summary, str) else None,
+        [str(e) for e in entities],
+        title.strip()[:1000] if isinstance(title, str) and title.strip() else None,
+    )
 
 
 async def enrich_event(
     title: str, item_texts: list[str], llm: LLMProvider, *, language: str = "en"
-) -> tuple[str | None, list[str]]:
+) -> tuple[str | None, list[str], str | None]:
     raw = await llm.generate(
         build_prompt(title, item_texts),
         system=_system_for(language),
@@ -116,13 +125,17 @@ async def apply_enrichment(
             .limit(8)
         )
         texts = [" ".join(p for p in (t, x) if p) for t, x in rows]
-        summary, entities = await enrich_event(event.title, texts, llm, language=language)
+        summary, entities, local_title = await enrich_event(
+            event.title, texts, llm, language=language
+        )
         if summary:
             event.summary = summary
+        if local_title:
+            event.title_local = local_title
         if entities:
             merged = sorted({*(event.entities or []), *[e.lower() for e in entities]})
             event.entities = merged
-        if summary or entities:
+        if summary or entities or local_title:
             enriched += 1
     log.info("enrich.done", enriched=enriched, considered=len(events))
     return enriched
