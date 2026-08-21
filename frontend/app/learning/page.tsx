@@ -49,6 +49,36 @@ export default function LearningPage() {
             />
           </div>
 
+          {!data.reliable && (
+            <Panel className="p-4 border-warn/40">
+              <p className="text-sm text-warn">
+                {t("ln.unreliable", { n: data.evaluated, m: data.min_for_reliable })}
+              </p>
+            </Panel>
+          )}
+
+          {data.by_metric.length > 0 && (
+            <Panel className="p-5">
+              <h2 className="text-xs uppercase tracking-widest text-muted mb-3">
+                {t("ln.byMetric")}
+              </h2>
+              <div className="grid gap-2">
+                {data.by_metric.map((m) => (
+                  <div key={m.metric} className="flex items-center gap-3 text-sm">
+                    <span className="font-mono text-xs w-24 text-muted">{m.metric}</span>
+                    <span className="tabular-nums">MAE {m.mae.toFixed(1)}</span>
+                    <span
+                      className={`ml-auto text-[11px] font-mono ${m.bias === "none" ? "text-good" : "text-warn"}`}
+                    >
+                      {t(`ln.bias.${m.bias}`)}
+                    </span>
+                    <span className="text-[10px] text-faint font-mono">n={m.evaluated}</span>
+                  </div>
+                ))}
+              </div>
+            </Panel>
+          )}
+
           <Panel className="p-5">
             <h2 className="text-xs uppercase tracking-widest text-muted">{t("ln.calibration")}</h2>
             <div className="flex flex-wrap items-baseline gap-4 mt-2">
@@ -67,6 +97,9 @@ export default function LearningPage() {
               )}
             </div>
             <p className="text-[11px] text-faint mt-2">{t("ln.calibrationHint")}</p>
+            {data.calibration_clamped && (
+              <p className="text-[11px] text-warn mt-1">{t("ln.clamped")}</p>
+            )}
           </Panel>
 
           <Panel className="p-5">

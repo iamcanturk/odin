@@ -284,6 +284,13 @@ class EvaluationItem(BaseModel):
     viral_score: float
 
 
+class MetricErrorRead(BaseModel):
+    metric: str
+    evaluated: int
+    mae: float
+    bias: str
+
+
 class EvaluationSummary(BaseModel):
     evaluated: int
     mae: float
@@ -292,6 +299,10 @@ class EvaluationSummary(BaseModel):
     calibration: float = 1.0
     bias: str = "none"
     impressions_per_like: float | None = None
+    reliable: bool = False
+    min_for_reliable: int = 10
+    calibration_clamped: bool = False
+    by_metric: list[MetricErrorRead] = Field(default_factory=list)
     items: list[EvaluationItem]
 
 

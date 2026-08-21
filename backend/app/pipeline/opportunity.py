@@ -7,12 +7,15 @@ confidence, content gap (placeholder) and low competition.
 
 from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass, field
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import ContentItem, Event, Source
+from app.models import ContentItem, Event, Source, Topic
+from app.models.associations import EventTopic
+from app.pipeline.performance import compute_performance
 
 OPPORTUNITY_VERSION = "opp-v1"
 
@@ -24,6 +27,10 @@ W_CONTENT_GAP = 0.10
 W_COMPETITION = 0.05
 
 FRESH_WINDOW_HOURS = 24.0
+
+# Range for the personal-performance multiplier. Deliberately narrow: performance data is
+# thin, so it should tilt the ranking, not dominate it.
+PERF_MIN, PERF_MAX = 0.80, 1.25
 COMPETITION_TARGET = 6  # more distinct sources => more competition => lower opportunity
 GAP_SPREAD_TARGET = 4  # sources covering an event for it to count as "everyone talking"
 GAP_DEPTH_K = 300  # chars; items much shorter than this read as shallow
@@ -99,10 +106,46 @@ def compute_opportunity(inp: OpportunityInputs) -> OpportunityResult:
     )
 
 
+async def _matched_topic_names(
+    session: AsyncSession, event_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, list[str]]:
+    if not event_ids:
+        return {}
+    rows = await session.execute(
+        select(EventTopic.event_id, Topic.name)
+        .join(Topic, EventTopic.topic_id == Topic.id)
+        .where(EventTopic.event_id.in_(event_ids), EventTopic.relevance > 0)
+    )
+    out: dict[uuid.UUID, list[str]] = {}
+    for event_id, name in rows:
+        out.setdefault(event_id, []).append(name.lower())
+    return out
+
+
+async def topic_performance_multipliers(session: AsyncSession) -> dict[str, float]:
+    """How well YOU actually do on each topic, as a multiplier on personal relevance.
+
+    ODIN measured per-topic performance but never used it: an event about something you
+    reliably do well on ranked exactly like one about a topic that always flops. Scores
+    are normalised 0-100 against your best topic, mapped to 0.8x-1.25x so a weak topic is
+    demoted rather than erased — one bad topic shouldn't be permanently silenced.
+    """
+    summary = await compute_performance(session)
+    if not summary.by_topic:
+        return {}
+    return {
+        c.category.lower(): PERF_MIN + (PERF_MAX - PERF_MIN) * (c.score / 100.0)
+        for c in summary.by_topic
+    }
+
+
 async def apply_opportunity(
     session: AsyncSession, events: list[Event], *, now
 ) -> None:
     """Compute + store opportunity_score and confidence_score for each event."""
+    perf = await topic_performance_multipliers(session)
+    matched = await _matched_topic_names(session, [e.id for e in events]) if perf else {}
+
     for event in events:
         row = (
             await session.execute(
@@ -123,10 +166,17 @@ async def apply_opportunity(
         acceleration = float((event.velocity or {}).get("acceleration", 0.0))
         age_hours = (now - event.first_seen_at).total_seconds() / 3600
 
+        # Tilt personal relevance by how you actually perform on this event's topics.
+        boost = 1.0
+        if perf:
+            factors = [perf[name] for name in matched.get(event.id, []) if name in perf]
+            if factors:
+                boost = max(factors)  # your best-performing matched topic leads
+
         result = compute_opportunity(
             OpportunityInputs(
                 trend_score=event.trend_score,
-                personal_relevance=event.personal_relevance,
+                personal_relevance=min(100.0, event.personal_relevance * boost),
                 age_hours=age_hours,
                 acceleration=acceleration,
                 source_confidence=avg_conf,

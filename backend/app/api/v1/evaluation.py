@@ -23,5 +23,9 @@ async def get_evaluation(session: AsyncSession = Depends(get_session)) -> Evalua
         calibration=summary.calibration,
         bias=summary.bias,
         impressions_per_like=summary.impressions_per_like,
+        reliable=summary.reliable,
+        min_for_reliable=summary.min_for_reliable,
+        calibration_clamped=summary.calibration_clamped,
+        by_metric=[m.__dict__ for m in summary.by_metric],
         items=[item.__dict__ for item in summary.items],
     )
