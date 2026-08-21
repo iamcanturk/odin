@@ -264,12 +264,14 @@ async def ingest_x_profile(
             .limit(1)
         )
     ).scalar_one_or_none()
-    if (
-        latest is not None
-        and latest.followers == payload.followers
-        and latest.following == payload.following
-        and latest.tweets == payload.tweets
-    ):
+    # A bio rewrite matters even when the counts didn't move, so it counts as a change.
+    unchanged = latest is not None and all(
+        getattr(latest, field) == getattr(payload, field)
+        for field in (
+            "followers", "following", "tweets", "display_name", "bio", "location", "website"
+        )
+    )
+    if unchanged:
         return {"handle": handle, "stored": False}
 
     session.add(
@@ -278,6 +280,10 @@ async def ingest_x_profile(
             followers=payload.followers,
             following=payload.following,
             tweets=payload.tweets,
+            display_name=payload.display_name,
+            bio=payload.bio,
+            location=payload.location,
+            website=payload.website,
         )
     )
     await session.commit()

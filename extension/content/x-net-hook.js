@@ -79,6 +79,41 @@
     for (const key of Object.keys(value)) collect(value[key], out, seen, depth + 1);
   }
 
+  /** X's user objects carry the bio/name/location/url exactly, no DOM guessing needed. */
+  function extractUser(node) {
+    const legacy = node.legacy || {};
+    const core = node.core || {};
+    const handle = legacy.screen_name || core.screen_name;
+    if (!handle) return null;
+    const url =
+      legacy.entities?.url?.urls?.[0]?.expanded_url || legacy.url || null;
+    return {
+      handle,
+      display_name: legacy.name || core.name || null,
+      bio: legacy.description || null,
+      location: legacy.location || node.location?.location || null,
+      website: url,
+      followers: legacy.followers_count ?? null,
+      following: legacy.friends_count ?? null,
+      tweets: legacy.statuses_count ?? null,
+    };
+  }
+
+  function collectUsers(value, out, seen, depth) {
+    if (!value || typeof value !== "object" || depth > 12 || out.length >= 5) return;
+    if (seen.has(value)) return;
+    seen.add(value);
+    if (Array.isArray(value)) {
+      for (const v of value) collectUsers(v, out, seen, depth + 1);
+      return;
+    }
+    if (value.__typename === "User") {
+      const user = extractUser(value);
+      if (user) out.push(user);
+    }
+    for (const key of Object.keys(value)) collectUsers(value[key], out, seen, depth + 1);
+  }
+
   function publish(payload) {
     let tweets = [];
     try {
@@ -91,6 +126,17 @@
     const byId = new Map();
     for (const t of tweets) byId.set(t.id, t);
     window.postMessage({ source: TAG, tweets: Array.from(byId.values()) }, window.location.origin);
+  }
+
+  function publishUsers(payload) {
+    let users = [];
+    try {
+      collectUsers(payload, users, new WeakSet(), 0);
+    } catch {
+      return;
+    }
+    if (!users.length) return;
+    window.postMessage({ source: TAG, users }, window.location.origin);
   }
 
   function isGraphQL(url) {
@@ -106,7 +152,10 @@
       if (isGraphQL(url)) {
         promise
           .then((res) => res.clone().json())
-          .then(publish)
+          .then((json) => {
+            publish(json);
+            publishUsers(json);
+          })
           .catch(() => {});
       }
     } catch {
@@ -126,7 +175,9 @@
     if (isGraphQL(this.__odinUrl)) {
       this.addEventListener("load", () => {
         try {
-          publish(JSON.parse(this.responseText));
+          const json = JSON.parse(this.responseText);
+          publish(json);
+          publishUsers(json);
         } catch {
           /* not JSON, or a partial response */
         }

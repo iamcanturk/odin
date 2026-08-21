@@ -167,8 +167,14 @@ function capMap(map, cap) {
 window.addEventListener("message", (event) => {
   if (event.source !== window) return;
   const data = event.data;
-  if (!data || data.source !== "odin-xhook" || !Array.isArray(data.tweets)) return;
+  if (!data || data.source !== "odin-xhook") return;
   if (!extAlive()) return;
+
+  if (Array.isArray(data.users)) {
+    handleUsers(data.users);
+    return;
+  }
+  if (!Array.isArray(data.tweets)) return;
 
   for (const tweet of data.tweets) {
     if (!tweet?.id) continue;
@@ -284,6 +290,34 @@ function paintVelocityBadges() {
     badge.style.color = style.color;
     badge.style.borderColor = style.color + "66";
     badge.title = `${Math.round(v.vph).toLocaleString()} görüntülenme/saat · ${v.ageHours.toFixed(1)} saatlik`;
+  }
+}
+
+// ---- Your own profile details ----
+// The bio is where you state who you are; the generator uses it so posts stay consistent
+// with your positioning. Taken from GraphQL, so it's exact rather than scraped text.
+
+let lastUserKey = null;
+
+async function handleUsers(users) {
+  const { odinEnabled = true, odinHandle = "" } = await chrome.storage.local.get([
+    "odinEnabled",
+    "odinHandle",
+  ]);
+  const me = normHandle(odinHandle);
+  if (!odinEnabled || !me) return;
+
+  const mine = users.find((u) => normHandle(u.handle) === me);
+  if (!mine) return; // other people's profiles are none of our business
+
+  const key = JSON.stringify(mine);
+  if (key === lastUserKey) return;
+  lastUserKey = key;
+
+  try {
+    await chrome.runtime.sendMessage({ type: "odin/profile", profile: mine });
+  } catch {
+    /* worker asleep or context gone */
   }
 }
 
@@ -479,6 +513,65 @@ async function sampleStyle({ onProgress } = {}) {
   return chrome.runtime.sendMessage({ type: "odin/style", handle, items });
 }
 
+// ---- Backfill: collect your whole history in one pass ----
+// Browsing only captures what you happen to scroll past, so the style profile and the
+// personal performance model see a thin, recent slice. This walks your profile once and
+// sends everything, which is the difference between "learned from 25 posts" and "learned
+// from all of them".
+
+const BACKFILL_MAX_ROUNDS = 60;
+const BACKFILL_WAIT_MS = 1100;
+const BACKFILL_BATCH = 100;
+
+async function backfillOwnPosts({ onProgress } = {}) {
+  if (!extAlive()) return { error: "Uzantı yeniden yüklendi — sayfayı yenile" };
+  const { odinHandle = "" } = await chrome.storage.local.get(["odinHandle"]);
+  const me = normHandle(odinHandle);
+  if (!me) return { error: "Önce ayarlarda handle gerekiyor" };
+  if (currentHandle() !== me) {
+    return { error: `Kendi profilinde çalıştır: x.com/${me}` };
+  }
+
+  const collected = new Map();
+  const startY = window.scrollY;
+  let idleRounds = 0;
+
+  for (let round = 0; round < BACKFILL_MAX_ROUNDS; round++) {
+    const before = collected.size;
+    // graphqlTweets is filled by the network hook as X pages in more of the timeline.
+    for (const [id, tweet] of graphqlTweets) {
+      if (normHandle(tweet.author_handle) === me) collected.set(id, tweet);
+    }
+    onProgress?.(collected.size);
+
+    // Stop once scrolling stops yielding anything new — that's the end of the timeline.
+    idleRounds = collected.size === before ? idleRounds + 1 : 0;
+    if (idleRounds >= 3 && round > 3) break;
+
+    window.scrollBy(0, window.innerHeight * 2);
+    await new Promise((r) => setTimeout(r, BACKFILL_WAIT_MS));
+  }
+  window.scrollTo(0, startY);
+
+  const items = Array.from(collected.values()).map((it) => ({ ...it, is_self: true }));
+  if (items.length === 0) return { error: "Hiç tweet bulunamadı" };
+
+  // Send in batches: one request with hundreds of posts risks a timeout mid-flight.
+  let sent = 0;
+  for (let i = 0; i < items.length; i += BACKFILL_BATCH) {
+    const batch = items.slice(i, i + BACKFILL_BATCH);
+    try {
+      await chrome.runtime.sendMessage({ type: "odin/collect", items: batch });
+      sent += batch.length;
+      onProgress?.(sent);
+    } catch {
+      break;
+    }
+  }
+  console.debug(`[ODIN] backfilled ${sent} of your posts`);
+  return { found: items.length, sent };
+}
+
 // ---- In-page button ----
 // Injected into X's own profile action bar (next to Message / Follow) by CLONING one of
 // their buttons, so it inherits their exact classes and looks native even when X changes
@@ -640,6 +733,12 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     scan();
     safeRespond(sendResponse, { ok: true, buffered: buffer.size });
     return false; // responded synchronously
+  }
+  if (message?.type === "odin/backfill") {
+    backfillOwnPosts()
+      .then((r) => safeRespond(sendResponse, r))
+      .catch((e) => safeRespond(sendResponse, { error: String(e?.message || e) }));
+    return true; // async response
   }
   if (message?.type === "odin/sample-style") {
     sampleStyle()

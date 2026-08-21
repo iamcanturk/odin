@@ -33,6 +33,32 @@ if (badgesEl) {
   });
 }
 
+const backfillBtn = document.getElementById("backfill");
+const backfillResult = document.getElementById("backfill-result");
+
+backfillBtn?.addEventListener("click", async () => {
+  backfillBtn.disabled = true;
+  backfillResult.textContent = "Profil taranıyor…";
+  backfillResult.style.color = "#8b93a3";
+  try {
+    // Backfill scrolls the page, so it has to run in the tab you have open.
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab?.url || !/^https:\/\/(x|twitter)\.com\//.test(tab.url)) {
+      throw new Error("Önce kendi X profilini aç");
+    }
+    const res = await chrome.tabs.sendMessage(tab.id, { type: "odin/backfill" });
+    if (res?.error) throw new Error(res.error);
+    backfillResult.textContent = `${res.sent} gönderi gönderildi`;
+    backfillResult.style.color = "#3dd4a0";
+    await render();
+  } catch (err) {
+    backfillResult.textContent = String(err.message || err);
+    backfillResult.style.color = "#ff6b5e";
+  } finally {
+    backfillBtn.disabled = false;
+  }
+});
+
 const syncBtn = document.getElementById("sync-now");
 const syncResult = document.getElementById("sync-result");
 
