@@ -18,7 +18,7 @@ from app.core.config import get_settings
 from app.core.db import get_session
 from app.models import ContentItem, ObservedTweet, ProfileSnapshot, Source, StyleReference
 from app.pipeline.ingest import _existing_hashes
-from app.pipeline.posts import import_user_post
+from app.pipeline.posts import import_user_post, link_posted_draft
 from app.pipeline.watch import posts_due
 from app.schemas.x import (
     FeedRelay,
@@ -52,10 +52,16 @@ async def ingest_x(
     # Import only the user's own posts (+ metric snapshots). Everyone else's tweets are
     # ignored — X is not an event source.
     imported = 0
+    linked = 0
     for item in batch.items:
-        if item.is_self:
-            await import_user_post(session, item)
-            imported += 1
+        if not item.is_self:
+            continue
+        # If this tweet is one of your approved drafts, link it automatically so you
+        # never have to paste the tweet id by hand.
+        if await link_posted_draft(session, item) is not None:
+            linked += 1
+        await import_user_post(session, item)
+        imported += 1
     await session.commit()
 
     return XIngestResult(
@@ -63,6 +69,7 @@ async def ingest_x(
         created=imported,
         duplicates=len(batch.items) - imported,
         events_created=0,
+        auto_linked=linked,
     )
 
 

@@ -36,6 +36,8 @@ class XIngestResult(BaseModel):
     created: int
     duplicates: int
     events_created: int
+    # Drafts matched to a freshly published tweet, so no manual id paste was needed.
+    auto_linked: int = 0
 
 
 class XStyleSampleBatch(BaseModel):

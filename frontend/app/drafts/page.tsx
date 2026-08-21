@@ -80,7 +80,8 @@ function DraftRow({ post }: { post: Post }) {
               </button>
             </div>
           )}
-          <div className="flex items-center gap-2 mt-2">
+          <p className="text-[11px] text-faint mt-2">{t("df.autoHint")}</p>
+          <div className="flex items-center gap-2 mt-1">
             <input
               value={xid}
               onChange={(e) => setXid(e.target.value)}
