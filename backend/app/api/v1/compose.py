@@ -19,6 +19,7 @@ from app.models import ContentItem, StyleReference
 from app.pipeline.content import (
     ANGLES,
     compose_freeform,
+    expand_hook,
     generate_hooks,
     generate_replies,
     refine_text,
@@ -153,6 +154,42 @@ async def hooks(
         session, payload.topic, get_llm_provider(), language=lang, n=payload.n
     )
     return [HookRead(text=h.text, xsim_score=h.xsim_score, rank=h.rank) for h in out]
+
+
+class ExpandRequest(BaseModel):
+    """Turn a chosen hook into the full post it opens."""
+
+    hook: str = Field(min_length=3, max_length=500)
+    topic: str = Field(min_length=3, max_length=2000)
+    language: str = Field(default="", pattern="^(en|tr|)$")
+    length: str = Field(default="short", pattern="^(short|long|story|thread)$")
+    audience: str = Field(default="technical", pattern="^(technical|general)$")
+    style_handle: str = Field(default="", max_length=120)
+
+
+@router.post("/expand", response_model=list[ComposeDraft])
+async def expand(
+    payload: ExpandRequest, session: AsyncSession = Depends(get_session)
+) -> list[ComposeDraft]:
+    """A hook is only useful if you can continue from it — this writes the rest."""
+    lang = payload.language or get_settings().content_language
+    drafts = await expand_hook(
+        session,
+        payload.hook,
+        payload.topic,
+        get_llm_provider(),
+        language=lang,
+        length=payload.length,
+        audience=payload.audience,
+        style_handle=payload.style_handle,
+    )
+    return [
+        ComposeDraft(
+            text=d.text, angle=d.angle, viral_score=d.viral_score,
+            novelty_score=d.novelty_score, risk_score=d.risk_score, rank=d.rank,
+        )
+        for d in drafts
+    ]
 
 
 class CritiqueRequest(BaseModel):
