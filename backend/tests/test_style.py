@@ -39,3 +39,44 @@ def test_summary_is_descriptive() -> None:
     fp = compute_style_profile(POSTS)
     assert "chars/post" in fp.summary
     assert "Frequent terms" in fp.summary
+
+
+def test_turkish_words_are_not_truncated_into_fragments() -> None:
+    """The old ASCII-only tokenizer turned 'yazdım' into 'yazd' and 'hesabı' into 'hesab'."""
+    from app.pipeline.text import keywords
+
+    terms = keywords("Docker imajlarını küçülttüm ve hesabımı güncelledim")
+    assert "imajlarını" in terms
+    assert "hesabımı" in terms
+    assert not any(t in terms for t in ("yazd", "hesab", "imajlar"))
+
+
+def test_turkish_filler_words_are_not_style_signal() -> None:
+    from app.pipeline.text import keywords
+
+    terms = keywords("Abi ama ben sonra çok yani işte falan bir şey yapacağım")
+    for filler in ("abi", "ama", "ben", "sonra", "yani", "işte", "falan"):
+        assert filler not in terms
+
+
+def test_top_terms_need_to_appear_across_posts() -> None:
+    """One rambling post must not inject its whole vocabulary into 'how you write'.
+
+    The cross-post floor only kicks in once there's a real corpus (MIN_CORPUS_FOR_FLOOR),
+    so this uses enough posts to trigger it.
+    """
+    posts = [
+        "Docker imajlarını küçültmek için multi-stage build",
+        "Docker katman sırası cache için önemli",
+        "GitHub Actions ile Docker build hızlandırma",
+        "Docker build süresini yarıya indirdim",
+        "Docker compose ile local ortam kurulumu",
+        "Build cache invalidation en sinir bozucu konu",
+        "GitHub Actions cache ayarları",
+        "Bugün kahve içtim ve parkta yürüdüm, hava enfesti",
+    ]
+    fp = compute_style_profile(posts)
+    assert "docker" in fp.top_terms
+    # Words unique to the one off-topic post are excluded.
+    for once in ("kahve", "parkta", "yürüdüm", "enfesti"):
+        assert once not in fp.top_terms

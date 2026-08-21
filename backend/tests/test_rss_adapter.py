@@ -175,3 +175,26 @@ async def test_fetch_honors_conditional_get() -> None:
     assert result.etag == '"v1"'
     assert result.items == []
     assert seen_headers.get("if-none-match") == '"v1"'
+
+
+VIDEO_RSS = b"""<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:media="http://search.yahoo.com/mrss/"><channel>
+  <title>Clips</title>
+  <item>
+    <title>A clip</title>
+    <link>https://example.com/v</link>
+    <guid>urn:v</guid>
+    <enclosure url="https://cdn.example.com/clip.mp4" type="video/mp4"/>
+    <description>A short clip about compilers.</description>
+  </item>
+</channel></rss>
+"""
+
+
+def test_normalize_extracts_video_and_embeds() -> None:
+    entries, _ = parse_feed(VIDEO_RSS)
+    item = RSSAdapter("https://example.com/feed").normalize(entries[0])
+    kinds = {m["type"] for m in item.media}
+    urls = {m["url"] for m in item.media}
+    assert "video" in kinds
+    assert "https://cdn.example.com/clip.mp4" in urls

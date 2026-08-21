@@ -36,6 +36,9 @@ class Settings(BaseSettings):
     llm_model: str = "deepseek/deepseek-chat"
     # Events at/above this trend score get an LLM summary (topic-matched events always do).
     enrich_trend_threshold: float = 30.0
+    # Ingested source material older than this is deleted automatically. Your own posts,
+    # metrics and style data are never affected.
+    retention_days: int = 3
     # Default language for generated content when not specified per-request (en | tr).
     content_language: str = "en"
     # LLM pricing (USD per 1M tokens) for cost estimation. Defaults ~ deepseek-chat.

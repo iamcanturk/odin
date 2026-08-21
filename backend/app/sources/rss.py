@@ -122,7 +122,7 @@ class RSSAdapter(SourceAdapter):
             author=entry.get("author"),
             published_at=published_at,
             language=self._language,
-            media=_extract_images(entry),
+            media=_extract_images(entry) + _extract_videos(entry),
             content_hash=compute_content_hash(self.source_type, key),
         )
 
@@ -146,6 +146,43 @@ def _html_blobs(entry: dict[str, Any]) -> list[str]:
     if isinstance(content, list):
         blobs.extend(c.get("value", "") for c in content if isinstance(c, dict))
     return blobs
+
+
+_VIDEO_EXTS = (".mp4", ".m4v", ".webm", ".mov")
+
+
+def _extract_videos(entry: dict[str, Any]) -> list[dict[str, str]]:
+    """Video enclosures, so a post suggestion can offer the clip as well as a still."""
+    out: list[dict[str, str]] = []
+    seen: set[str] = set()
+
+    def add(url: object, kind: str = "video") -> None:
+        if not isinstance(url, str) or not url.startswith("http") or url in seen:
+            return
+        seen.add(url)
+        out.append({"type": kind, "url": url})
+
+    for m in entry.get("media_content") or []:
+        if not isinstance(m, dict):
+            continue
+        kind = str(m.get("medium") or m.get("type") or "").lower()
+        url = str(m.get("url") or "")
+        if kind.startswith("video") or url.lower().endswith(_VIDEO_EXTS):
+            add(m.get("url"))
+    # feedparser exposes <enclosure> through `links` with rel="enclosure" (the
+    # `enclosures` key is often absent), so check both shapes.
+    for enc in (entry.get("enclosures") or []) + (entry.get("links") or []):
+        if not isinstance(enc, dict):
+            continue
+        if enc.get("rel") not in (None, "enclosure"):
+            continue
+        kind = str(enc.get("type") or "").lower()
+        url = str(enc.get("href") or enc.get("url") or "")
+        if kind.startswith("video") or url.lower().endswith(_VIDEO_EXTS):
+            add(enc.get("href") or enc.get("url"))
+    # NOTE: no iframe/embed handling — feedparser sanitises the feed HTML and strips
+    # <iframe> outright, so YouTube/Vimeo players never survive parsing.
+    return out[:3]
 
 
 def _extract_images(entry: dict[str, Any]) -> list[dict[str, str]]:

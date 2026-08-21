@@ -17,7 +17,15 @@ from app.models import Post, PostMetric, StyleProfile
 from app.pipeline.text import STOPWORDS
 from app.providers.base import EmbeddingProvider
 
-_WORD_RE = re.compile(r"[A-Za-z0-9']+")
+# Words for the STRUCTURAL features (length, caps, hooks) — apostrophes kept so "don't"
+# counts as one word.
+_WORD_RE = re.compile(r"[^\W\d_]+(?:'[^\W\d_]+)?", re.UNICODE)
+
+# A term has to appear in at least this many separate posts to count as characteristic.
+# Without it, one rambling post injects its whole vocabulary into "how you write".
+MIN_TERM_POSTS = 2
+# Below this many posts, take the most frequent terms as-is.
+MIN_CORPUS_FOR_FLOOR = 8
 _SENT_RE = re.compile(r"[.!?]+")
 _EMOJI_RE = re.compile(
     "[" "\U0001f300-\U0001faff" "\U00002600-\U000027bf" "\U0001f1e6-\U0001f1ff" "]"
@@ -62,9 +70,13 @@ def compute_style_profile(texts: list[str]) -> StyleFingerprint:
         first = words[0].lower() if words else ""
         hooks.append(1.0 if (t.lstrip().startswith(("?",)) or first in _HOOK_WORDS) else 0.0)
         allcaps.append(sum(1 for w in words if w.isupper() and len(w) > 1) / max(1, len(words)))
+        # Count each term ONCE per post: frequency across posts is what makes a term
+        # characteristic, whereas raw frequency just favours whoever repeated themselves.
+        seen_here = set()
         for w in words:
-            wl = w.lower()
-            if len(wl) >= 3 and wl not in STOPWORDS:
+            wl = w.lower().strip("'")
+            if len(wl) >= 3 and wl not in STOPWORDS and wl not in seen_here:
+                seen_here.add(wl)
                 vocab[wl] += 1
 
     features = {
@@ -80,7 +92,10 @@ def compute_style_profile(texts: list[str]) -> StyleFingerprint:
         "hook_rate": _mean(hooks),
         "allcaps_rate": _mean(allcaps),
     }
-    top_terms = [w for w, _ in vocab.most_common(15)]
+    # Demanding cross-post evidence only makes sense with a real corpus; on a handful of
+    # posts it would empty the list entirely and leave the profile with nothing to say.
+    floor = MIN_TERM_POSTS if n >= MIN_CORPUS_FOR_FLOOR else 1
+    top_terms = [w for w, count in vocab.most_common(40) if count >= floor][:15]
 
     tone = "energetic" if features["exclaim_rate"] > 0.3 else "measured"
     curiosity = "inquisitive" if features["question_rate"] > 0.35 else "declarative"
