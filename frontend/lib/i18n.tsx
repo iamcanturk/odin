@@ -27,6 +27,19 @@ const M: Record<string, { tr: string; en: string }> = {
   "nav.system": { tr: "Sistem", en: "System" },
   "nav.compose": { tr: "Tweet üret", en: "Compose" },
   "nav.pulse": { tr: "X Nabız", en: "X Pulse" },
+  "nav.discover": { tr: "Akış", en: "Feed" },
+
+  // discover / raw feed
+  "dc.title": { tr: "Akış", en: "Feed" },
+  "dc.subtitle": {
+    tr: "Kaynaklardan gelen ham içerik. Konsol bunları kümeleyip fırsata çevirir; burada olduğu gibi görürsün.",
+    en: "Raw content from your sources. The console clusters these into opportunities; here you see them as they arrive.",
+  },
+  "dc.allSources": { tr: "Tüm kaynaklar", en: "All sources" },
+  "dc.onlyImages": { tr: "Sadece görselli", en: "With images only" },
+  "dc.empty": { tr: "Bu filtreyle içerik yok.", en: "Nothing matches this filter." },
+  "dc.toEvent": { tr: "Olaya git", en: "Open event" },
+  "dc.compose": { tr: "Bundan tweet üret", en: "Post about this" },
 
   // X Pulse
   "pl.title": { tr: "X Nabız", en: "X Pulse" },
@@ -368,6 +381,11 @@ const M: Record<string, { tr: string; en: string }> = {
   "ts.negative": { tr: "Negatif risk", en: "Negative risk" },
   "ts.why": { tr: "Neden işe yarar", en: "Why it works" },
   "ts.watch": { tr: "Dikkat edilecekler", en: "What to watch" },
+  "ts.repeat": { tr: "Bunu daha önce yazdın", en: "You've said this before" },
+  "ts.repeatHint": {
+    tr: "Geçmiş paylaşımlarınla anlamsal olarak örtüşüyor. Yeni bir açı bul ya da bilerek tekrar et.",
+    en: "Semantically overlaps posts you already published. Find a new angle, or repeat on purpose.",
+  },
 
   // profile
   "pf.title": { tr: "Stil profilin", en: "Your style profile" },

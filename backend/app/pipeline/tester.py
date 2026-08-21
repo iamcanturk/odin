@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import Event, StyleProfile
 from app.models.enums import EventStatus
 from app.pipeline.clustering import cosine
+from app.pipeline.repetition import check_repetition
 from app.pipeline.xsim import extract_features, negative_probability, simulate
 from app.providers.base import EmbeddingProvider
 
@@ -36,6 +37,7 @@ class TesterResult:
     weaknesses: list[str] = field(default_factory=list)
     scoring_version: str = SCORING_VERSION
     disclaimer: str = DISCLAIMER
+    repeats: list[dict] = field(default_factory=list)
 
 
 def combine_viral(xsim: float, personal: float, trend: float, novelty: float) -> float:
@@ -44,6 +46,8 @@ def combine_viral(xsim: float, personal: float, trend: float, novelty: float) ->
 
 async def analyze(session: AsyncSession, text: str, embedder: EmbeddingProvider) -> TesterResult:
     vec = await embedder.embed_text(text)
+
+    repeat = await check_repetition(session, text, embedder)
 
     profile = (
         await session.execute(select(StyleProfile).where(StyleProfile.key == "default"))
@@ -88,6 +92,10 @@ async def analyze(session: AsyncSession, text: str, embedder: EmbeddingProvider)
         strengths.append("Invites replies, which the ranker weights ~10x a like.")
     if novelty < 35:
         weaknesses.append("Low novelty — similar framing is already widespread.")
+    if repeat.is_repeat:
+        top = repeat.matches[0]
+        when = f"{top.days_ago} gün önce" if top.days_ago is not None else "daha önce"
+        weaknesses.append(f"Bunu {when} zaten yazdın (%{top.similarity * 100:.0f} benzer).")
     if neg >= 0.02:
         weaknesses.append("Elevated negative-feedback risk (mutes / 'not interested').")
     if xr.sim_score < 30 and f.shareable < 0.3:
@@ -107,6 +115,15 @@ async def analyze(session: AsyncSession, text: str, embedder: EmbeddingProvider)
         bookmark_potential=round(100.0 * xr.probabilities["bookmark"], 2),
         negative_risk=round(100.0 * neg, 2),
         probabilities=xr.probabilities,
+        repeats=[
+            {
+                "post_id": m.post_id,
+                "text": m.text,
+                "similarity": m.similarity,
+                "days_ago": m.days_ago,
+            }
+            for m in repeat.matches
+        ],
         strengths=strengths,
         weaknesses=weaknesses,
     )

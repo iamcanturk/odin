@@ -371,6 +371,24 @@ export interface SourceItem {
   event_id: string | null;
 }
 
+export interface DiscoverItem extends SourceItem {
+  source_name: string;
+  source_category: string | null;
+}
+
+export function fetchDiscover(opts?: {
+  category?: string;
+  sourceId?: string;
+  withMedia?: boolean;
+}): Promise<DiscoverItem[]> {
+  const qs = new URLSearchParams();
+  if (opts?.category) qs.set("category", opts.category);
+  if (opts?.sourceId) qs.set("source_id", opts.sourceId);
+  if (opts?.withMedia) qs.set("with_media", "true");
+  const q = qs.toString();
+  return getJSON<DiscoverItem[]>(`/sources/discover${q ? `?${q}` : ""}`);
+}
+
 export const fetchSourceItems = (id: string) =>
   getJSON<SourceItem[]>(`/sources/${id}/items`);
 
@@ -402,6 +420,13 @@ export const fetchPerformance = () => getJSON<PerformanceSummary>("/performance"
 
 // ---- Tweet tester ----
 
+export interface RepeatMatch {
+  post_id: string;
+  text: string;
+  similarity: number;
+  days_ago: number | null;
+}
+
 export interface TesterResponse {
   viral_potential: number;
   x_simulation: number;
@@ -414,6 +439,7 @@ export interface TesterResponse {
   probabilities: Record<string, number>;
   strengths: string[];
   weaknesses: string[];
+  repeats: RepeatMatch[];
   scoring_version: string;
   disclaimer: string;
 }

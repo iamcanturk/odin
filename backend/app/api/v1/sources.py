@@ -35,6 +35,63 @@ class SourceItem(BaseModel):
     event_id: uuid.UUID | None = None
 
 
+class DiscoverItem(SourceItem):
+    source_name: str
+    source_category: str | None = None
+
+
+@router.get("/discover", response_model=list[DiscoverItem])
+async def discover(
+    session: AsyncSession = Depends(get_session),
+    category: str = Query("", max_length=64),
+    source_id: uuid.UUID | None = Query(None),
+    with_media: bool = Query(False),
+    limit: int = Query(60, ge=1, le=200),
+) -> list[DiscoverItem]:
+    """Browse raw incoming content, by source or category, images included.
+
+    The console shows CLUSTERED events, which is right for spotting opportunities but
+    hides where anything came from — there was no way to just look at what Reddit or
+    Pinterest brought in, or to see the images at all.
+    """
+    stmt = (
+        select(ContentItem, Source)
+        .join(Source, ContentItem.source_id == Source.id)
+        .order_by(ContentItem.published_at.desc().nullslast())
+        .limit(limit)
+    )
+    if source_id is not None:
+        stmt = stmt.where(ContentItem.source_id == source_id)
+    if category.strip():
+        stmt = stmt.where(Source.category == category.strip())
+    if with_media:
+        stmt = stmt.where(ContentItem.media != [])
+
+    out: list[DiscoverItem] = []
+    for item, src in await session.execute(stmt):
+        image = next(
+            (
+                str(m["url"])
+                for m in (item.media or [])
+                if isinstance(m, dict) and m.get("type") == "image" and m.get("url")
+            ),
+            None,
+        )
+        out.append(
+            DiscoverItem(
+                id=item.id,
+                title=item.title,
+                url=item.url,
+                published_at=item.published_at,
+                image=image,
+                event_id=item.event_id,
+                source_name=src.name,
+                source_category=src.category,
+            )
+        )
+    return out
+
+
 @router.get("/{source_id}/items", response_model=list[SourceItem])
 async def source_items(
     source_id: uuid.UUID,
