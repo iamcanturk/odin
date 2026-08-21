@@ -134,11 +134,15 @@ async def test_observed_ingest_and_pulse_ranking(
     assert resp.status_code == 201
     assert resp.json()["stored"] == 2
 
+    # The quiet tweet (40 views) is below the traction floor, so the pulse ignores it.
     body = (await client.get("/api/v1/pulse")).json()
-    assert body["observed"] == 2
-    # Ranked by views/hour, so the spiking tweet leads.
+    assert body["observed"] == 1
     assert body["items"][0]["external_id"] == "a1"
     assert body["items"][0]["tier"] == "hot"
+
+    # Drop the floor and it reappears — the filter is a threshold, not a deletion.
+    both = (await client.get("/api/v1/pulse", params={"min_views": 0})).json()
+    assert both["observed"] == 2
 
     # Filtering to hot drops the quiet one entirely.
     hot = (await client.get("/api/v1/pulse", params={"min_tier": "hot"})).json()
@@ -165,3 +169,56 @@ async def test_repeat_sightings_build_a_series_not_duplicates(
 
     async with db_sessionmaker() as session:
         assert await session.scalar(select(func.count()).select_from(ObservedTweet)) == 1
+
+
+async def test_pulse_excludes_replies_and_your_own_posts(
+    db_sessionmaker, client: httpx.AsyncClient
+) -> None:
+    """Browsing captures everything you scroll past; most of it isn't a reaction opportunity."""
+    from app.models import ProfileSnapshot
+
+    now = datetime.now(UTC)
+    async with db_sessionmaker() as session:
+        session.add(ProfileSnapshot(handle="me", followers=1))
+        base = dict(
+            posted_at=now - timedelta(hours=1), observed_at=now,
+            impressions=50_000, likes=100, reposts=10, replies=5, bookmarks=3,
+        )
+        session.add(ObservedTweet(external_id="mine", author_handle="me", text="my post", **base))
+        session.add(
+            ObservedTweet(
+                external_id="frag", author_handle="other", text="Emin misin?",
+                is_reply=True, **base
+            )
+        )
+        session.add(
+            ObservedTweet(external_id="real", author_handle="other", text="real content", **base)
+        )
+        await session.commit()
+
+    ids = [i["external_id"] for i in (await client.get("/api/v1/pulse")).json()["items"]]
+    assert ids == ["real"]  # own post and reply fragment both excluded
+
+
+async def test_pulse_can_filter_to_your_topics(
+    db_sessionmaker, client: httpx.AsyncClient
+) -> None:
+    from app.models import Topic
+
+    now = datetime.now(UTC)
+    async with db_sessionmaker() as session:
+        session.add(Topic(name="Docker", keywords=["docker", "container"], enabled=True))
+        base = dict(
+            posted_at=now - timedelta(hours=1), observed_at=now,
+            impressions=50_000, likes=100, reposts=10, replies=5, bookmarks=3,
+            author_handle="other",
+        )
+        session.add(ObservedTweet(external_id="rel", text="Docker layer caching tips", **base))
+        session.add(ObservedTweet(external_id="off", text="Bugün hava çok güzel", **base))
+        await session.commit()
+
+    everything = (await client.get("/api/v1/pulse")).json()
+    assert len(everything["items"]) == 2
+
+    relevant = (await client.get("/api/v1/pulse", params={"relevant_only": "true"})).json()
+    assert [i["external_id"] for i in relevant["items"]] == ["rel"]

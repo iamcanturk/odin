@@ -15,10 +15,33 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_session
-from app.models import ObservedTweet
+from app.models import ObservedTweet, ProfileSnapshot, Topic
 from app.pipeline.velocity import compute_velocity
 
 router = APIRouter(prefix="/pulse", tags=["pulse"])
+
+# Below this a tweet has no measurable traction, so its views/hour is noise.
+MIN_VIEWS = 500
+
+
+async def _own_handles(session: AsyncSession) -> set[str]:
+    rows = await session.execute(select(ProfileSnapshot.handle).distinct())
+    return {h.lower() for (h,) in rows if h}
+
+
+async def _topic_keywords(session: AsyncSession) -> set[str]:
+    rows = await session.execute(select(Topic.keywords, Topic.name).where(Topic.enabled.is_(True)))
+    words: set[str] = set()
+    for keywords, name in rows:
+        words.update(k.lower() for k in (keywords or []) if len(k) >= 3)
+        if name and len(name) >= 3:
+            words.add(name.lower())
+    return words
+
+
+def _matches_topics(text: str, words: set[str]) -> bool:
+    low = (text or "").lower()
+    return any(w in low for w in words)
 
 
 class PulseTweet(BaseModel):
@@ -50,9 +73,20 @@ async def get_pulse(
     window_hours: int = Query(24, ge=1, le=168),
     limit: int = Query(25, ge=1, le=100),
     min_tier: str = Query("cold", pattern="^(cold|warm|hot)$"),
+    min_views: int = Query(MIN_VIEWS, ge=0),
+    relevant_only: bool = Query(False),
 ) -> PulseSummary:
+    """What is spiking on X, filtered down to things actually worth reacting to.
+
+    Browsing captures everything you scroll past — your own posts, reply fragments,
+    arguments, ads-adjacent noise. None of that is a reaction opportunity, so the feed is
+    filtered rather than shown raw.
+    """
     now = datetime.now(UTC)
     cutoff = now - timedelta(hours=window_hours)
+
+    own = await _own_handles(session)
+    topic_words = await _topic_keywords(session) if relevant_only else set()
 
     # Only the most recent sighting of each tweet — that's its current standing.
     latest = (
@@ -60,7 +94,12 @@ async def get_pulse(
             ObservedTweet.external_id.label("eid"),
             func.max(ObservedTweet.observed_at).label("seen"),
         )
-        .where(ObservedTweet.posted_at >= cutoff)
+        .where(
+            ObservedTweet.posted_at >= cutoff,
+            # Reply fragments carry no standalone meaning.
+            ObservedTweet.is_reply.is_(False),
+            ObservedTweet.impressions >= min_views,
+        )
         .group_by(ObservedTweet.external_id)
         .subquery()
     )
@@ -81,6 +120,11 @@ async def get_pulse(
 
     scored: list[PulseTweet] = []
     for t in rows:
+        # Your own posts belong on the profile page, not in "what's happening".
+        if t.author_handle and t.author_handle.lower() in own:
+            continue
+        if topic_words and not _matches_topics(t.text, topic_words):
+            continue
         v = compute_velocity(
             impressions=t.impressions,
             likes=t.likes,
