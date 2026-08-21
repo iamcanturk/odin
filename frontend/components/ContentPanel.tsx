@@ -13,6 +13,7 @@ import {
   type Candidate,
   type TweetKind,
   type TweetLength,
+  openInX,
 } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { Panel } from "./ui";
@@ -116,6 +117,13 @@ function CandidateCard({
       )}
 
       <div className="flex flex-wrap items-center gap-2 mt-3">
+        <button
+          onClick={() => openInX(text, sourceUrl)}
+          title={t("cp.openXHint")}
+          className="rounded border border-accent/60 bg-accent/10 px-2 py-1 text-[11px] text-accent hover:bg-accent/20 transition-colors"
+        >
+          {t("cp.openX")}
+        </button>
         <CopyButton text={text} label={t("cp.copy")} />
         {sourceUrl && <CopyButton text={withSource} label={t("cp.copySource")} />}
         {!editing && (

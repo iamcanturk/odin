@@ -14,7 +14,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Post, PostMetric, PostPrediction
-from app.pipeline.predict import DEFAULT_IMPRESSIONS_PER_LIKE, clamp_calibration
+from app.pipeline.predict import (
+    CALIBRATION_MAX,
+    CALIBRATION_MIN,
+    DEFAULT_IMPRESSIONS_PER_LIKE,
+    clamp_calibration,
+)
 
 
 @dataclass
@@ -28,6 +33,20 @@ class EvalItem:
     viral_score: float
 
 
+# Below this, aggregate error is noise dressed up as a metric.
+MIN_FOR_RELIABLE = 10
+
+
+@dataclass
+class MetricError:
+    """How well one predicted quantity tracked reality."""
+
+    metric: str
+    evaluated: int
+    mae: float
+    bias: str  # under | over | none
+
+
 @dataclass
 class EvalSummary:
     evaluated: int = 0
@@ -38,6 +57,13 @@ class EvalSummary:
     calibration: float = 1.0
     bias: str = "none"  # under | over | none
     impressions_per_like: float | None = None
+    # Small samples produce confident-looking numbers that mean nothing; say so.
+    reliable: bool = False
+    min_for_reliable: int = MIN_FOR_RELIABLE
+    # True when the correction hit its clamp, i.e. the real error is even larger than
+    # the factor suggests and the clamp is hiding it.
+    calibration_clamped: bool = False
+    by_metric: list[MetricError] = field(default_factory=list)
     items: list[EvalItem] = field(default_factory=list)
 
 
@@ -111,6 +137,9 @@ async def evaluate(session: AsyncSession) -> EvalSummary:
     pairs = [(float(i.predicted_likes), float(i.actual_likes)) for i in items]
     cal = calibration_factor(pairs)
     return EvalSummary(
+        reliable=len(items) >= MIN_FOR_RELIABLE,
+        calibration_clamped=cal in (CALIBRATION_MIN, CALIBRATION_MAX),
+        by_metric=await _by_metric(session, posts),
         evaluated=len(items),
         mae=mae(pairs),
         rmse=rmse(pairs),
@@ -120,6 +149,43 @@ async def evaluate(session: AsyncSession) -> EvalSummary:
         impressions_per_like=await learned_impressions_per_like(session),
         items=items,
     )
+
+
+async def _by_metric(session: AsyncSession, posts: list[Post]) -> list[MetricError]:
+    """Impressions, replies and reposts were predicted and stored but never compared.
+
+    Likes alone hide where the model is actually wrong: it can be close on likes while
+    being wildly off on reach.
+    """
+    fields = (
+        ("impressions", "predicted_impressions", "impressions"),
+        ("replies", "predicted_replies", "replies"),
+        ("reposts", "predicted_reposts", "reposts"),
+    )
+    out: list[MetricError] = []
+    for label, pred_attr, actual_attr in fields:
+        pairs: list[tuple[float, float]] = []
+        for post in posts:
+            pred = await _latest_prediction(session, post.id)
+            metric = await _latest_metric(session, post.id)
+            if pred is None or metric is None:
+                continue
+            p_val, a_val = getattr(pred, pred_attr), getattr(metric, actual_attr)
+            if p_val is None or a_val is None:
+                continue
+            pairs.append((float(p_val), float(a_val)))
+        if not pairs:
+            continue
+        ratio = calibration_factor(pairs)
+        out.append(
+            MetricError(
+                metric=label,
+                evaluated=len(pairs),
+                mae=mae(pairs),
+                bias="under" if ratio > 1.15 else "over" if ratio < 0.85 else "none",
+            )
+        )
+    return out
 
 
 def calibration_factor(pairs: list[tuple[float, float]]) -> float:

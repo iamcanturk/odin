@@ -121,6 +121,22 @@ export function fetchEvents(params?: {
   return getJSON<EventList>(`/events?${qs.toString()}`);
 }
 
+/**
+ * Open X's composer with the text prefilled.
+ *
+ * Uses X's documented intent URL rather than automating the page: it needs no extension,
+ * works on any device, and stays firmly inside their terms. You still press Post, which
+ * is the point — ODIN never publishes on its own.
+ */
+export function openInX(text: string, url?: string | null): void {
+  const body = url ? `${text}\n\n${url}` : text;
+  window.open(
+    `https://x.com/intent/post?text=${encodeURIComponent(body)}`,
+    "_blank",
+    "noopener,noreferrer",
+  );
+}
+
 export const dismissEvent = (id: string) =>
   send<{ id: string; status: string }>(`/events/${id}/dismiss`, "POST");
 
@@ -301,6 +317,10 @@ export interface EvaluationSummary {
   calibration: number;
   bias: "under" | "over" | "none";
   impressions_per_like: number | null;
+  reliable: boolean;
+  min_for_reliable: number;
+  calibration_clamped: boolean;
+  by_metric: { metric: string; evaluated: number; mae: number; bias: string }[];
   items: EvaluationItem[];
 }
 

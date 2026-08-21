@@ -415,6 +415,16 @@ const M: Record<string, { tr: string; en: string }> = {
   "ln.evaluated": { tr: "Değerlendirilen", en: "Evaluated" },
   "ln.perPost": { tr: "Gönderi başına", en: "Per post" },
   "ln.calibration": { tr: "Kalibrasyon", en: "Calibration" },
+  "ln.unreliable": {
+    tr: "Bu sayılara henüz güvenme: {n} gönderi var, anlamlı olması için en az {m} gerekiyor.",
+    en: "Don't trust these numbers yet: {n} posts, and at least {m} are needed to mean anything.",
+  },
+  "ln.clamped": {
+    tr: "Kalibrasyon sınıra dayandı — gerçek sapma gösterilenden daha büyük, sınır bunu maskeliyor.",
+    en: "Calibration hit its clamp — the real error is larger than shown; the clamp is masking it.",
+  },
+  "ln.byMetric": { tr: "Ölçüte göre sapma", en: "Error by metric" },
+  "ln.metric": { tr: "Ölçüt", en: "Metric" },
   "ln.calibrationHint": {
     tr: "Geçmiş tahmin hataların bir sonraki tahmine otomatik uygulanır — model kendini düzeltir.",
     en: "Past prediction error is folded into the next prediction — the model self-corrects.",
@@ -449,6 +459,11 @@ const M: Record<string, { tr: string; en: string }> = {
   "cp.length": { tr: "Uzunluk", en: "Length" },
   "cp.length.short": { tr: "Kısa (≤280)", en: "Short (≤280)" },
   "cp.length.long": { tr: "Uzun", en: "Long" },
+  "cp.openX": { tr: "X'te paylaş →", en: "Post on X →" },
+  "cp.openXHint": {
+    tr: "X'i hazır metinle açar. Göndermeye sen karar verirsin; ODIN kendiliğinden paylaşmaz.",
+    en: "Opens X with the text prefilled. You still press Post; ODIN never publishes by itself.",
+  },
   "cp.copy": { tr: "Kopyala", en: "Copy" },
   "cp.copySource": { tr: "Kaynakla kopyala", en: "Copy + source" },
   "cp.copied": { tr: "Kopyalandı ✓", en: "Copied ✓" },

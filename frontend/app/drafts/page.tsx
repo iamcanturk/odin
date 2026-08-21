@@ -2,7 +2,14 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { deletePost, fetchPosts, markPosted, updatePost, type Post } from "@/lib/api";
+import {
+  deletePost,
+  fetchPosts,
+  markPosted,
+  openInX,
+  updatePost,
+  type Post,
+} from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { EmptyState, ErrorState, LoadingState, PageHeader, Panel } from "@/components/ui";
 import { RefineEditor } from "@/components/RefineEditor";
@@ -65,6 +72,13 @@ function DraftRow({ post }: { post: Post }) {
         <>
           {!editing && (
             <div className="flex items-center gap-2 mt-3">
+              <button
+                onClick={() => openInX(post.text)}
+                title={t("cp.openXHint")}
+                className="rounded border border-accent/60 bg-accent/10 px-2 py-1 text-[11px] text-accent hover:bg-accent/20 transition-colors"
+              >
+                {t("cp.openX")}
+              </button>
               <button
                 onClick={() => setEditing(true)}
                 className="rounded border border-border px-2 py-1 text-[11px] text-muted hover:text-text hover:border-accent/50 transition-colors"

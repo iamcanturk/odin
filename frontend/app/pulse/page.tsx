@@ -2,7 +2,13 @@
 
 import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { composeReply, fetchPulse, type ComposeDraft, type PulseTweet } from "@/lib/api";
+import {
+  composeReply,
+  fetchPulse,
+  openInX,
+  type ComposeDraft,
+  type PulseTweet,
+} from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { EmptyState, ErrorState, LoadingState, PageHeader, Panel, StatTile } from "@/components/ui";
 
@@ -36,6 +42,12 @@ function ReplyDrafts({ drafts, tweetUrl }: { drafts: ComposeDraft[]; tweetUrl: s
           </div>
           <p className="text-sm text-text mt-1.5 whitespace-pre-wrap">{d.text}</p>
           <div className="flex gap-2 mt-2">
+            <button
+              onClick={() => openInX(d.text, tweetUrl)}
+              className="rounded border border-accent/60 bg-accent/10 px-2 py-1 text-[11px] text-accent hover:bg-accent/20 transition-colors"
+            >
+              {t("cp.openX")}
+            </button>
             <button
               onClick={async () => {
                 try {
