@@ -700,3 +700,66 @@ export function recommendedAction(opportunity: number): { label: string; tone: s
   if (opportunity >= 50) return { label: "CONSIDER", tone: "warn" };
   return { label: "WAIT", tone: "muted" };
 }
+
+// ---- Benchmark: your numbers against the corpus you've actually seen ----
+
+export interface Distribution {
+  metric: string;
+  p25: number;
+  median: number;
+  p75: number;
+  p90: number;
+}
+
+export interface PostRank {
+  post_id: string;
+  text: string;
+  posted_at: string | null;
+  likes: number;
+  impressions: number | null;
+  like_percentile: number;
+  verdict: "below" | "typical" | "above" | "top";
+}
+
+export interface Benchmark {
+  corpus_size: number;
+  enough_data: boolean;
+  min_corpus: number;
+  window_days: number;
+  your_posts: number;
+  your_percentile: number | null;
+  caveat: string;
+  distributions: Distribution[];
+  posts: PostRank[];
+}
+
+export const fetchBenchmark = () => getJSON<Benchmark>("/performance/benchmark");
+
+// ---- Post-mortem: why one post did what it did ----
+
+export interface Comparison {
+  label: string;
+  actual: number;
+  reference: number | null;
+  verdict: "better" | "similar" | "worse" | "unknown";
+  note: string;
+}
+
+export interface PostMortem {
+  post_id: string;
+  text: string;
+  posted_at: string | null;
+  hours_since_post: number | null;
+  settled: boolean;
+  likes: number;
+  replies: number;
+  reposts: number;
+  impressions: number | null;
+  first_hour_likes: number | null;
+  tags: string[];
+  comparisons: Comparison[];
+  lessons: string[];
+}
+
+export const fetchPostMortem = (id: string) =>
+  getJSON<PostMortem>(`/posts/${id}/postmortem`);
