@@ -6,6 +6,7 @@ successful posts is computed separately in build_style_profile.
 
 from __future__ import annotations
 
+import math
 import re
 from collections import Counter
 from dataclasses import dataclass, field
@@ -26,6 +27,11 @@ _WORD_RE = re.compile(r"[^\W\d_]+(?:'[^\W\d_]+)?", re.UNICODE)
 MIN_TERM_POSTS = 2
 # Below this many posts, take the most frequent terms as-is.
 MIN_CORPUS_FOR_FLOOR = 8
+# No stopword list is ever complete: "gerekiyor", "şekilde", "gerçekten" aren't stopwords
+# but say nothing about what someone writes about. Rank by df * log(n/df) instead — a
+# classic TF-IDF shape. A term in EVERY post scores exactly 0 (log 1) and drops out, while
+# a term in a healthy minority scores highest. That handles background language without a
+# hard cutoff, so a genuinely dominant topic still survives.
 _SENT_RE = re.compile(r"[.!?]+")
 _EMOJI_RE = re.compile(
     "[" "\U0001f300-\U0001faff" "\U00002600-\U000027bf" "\U0001f1e6-\U0001f1ff" "]"
@@ -95,7 +101,13 @@ def compute_style_profile(texts: list[str]) -> StyleFingerprint:
     # Demanding cross-post evidence only makes sense with a real corpus; on a handful of
     # posts it would empty the list entirely and leave the profile with nothing to say.
     floor = MIN_TERM_POSTS if n >= MIN_CORPUS_FOR_FLOOR else 1
-    top_terms = [w for w, count in vocab.most_common(40) if count >= floor][:15]
+    scored = [
+        (w, df * math.log(n / df))
+        for w, df in vocab.items()
+        if df >= floor and df < n  # df == n means it's in every post: zero information
+    ]
+    scored.sort(key=lambda pair: (-pair[1], pair[0]))
+    top_terms = [w for w, _ in scored[:15]]
 
     tone = "energetic" if features["exclaim_rate"] > 0.3 else "measured"
     curiosity = "inquisitive" if features["question_rate"] > 0.35 else "declarative"

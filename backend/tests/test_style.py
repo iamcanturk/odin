@@ -80,3 +80,20 @@ def test_top_terms_need_to_appear_across_posts() -> None:
     # Words unique to the one off-topic post are excluded.
     for once in ("kahve", "parkta", "yürüdüm", "enfesti"):
         assert once not in fp.top_terms
+
+
+def test_words_in_most_posts_are_background_not_voice() -> None:
+    """No stopword list is ever complete.
+
+    'gerekiyor', 'şekilde', 'gerçekten' aren't stopwords but say nothing about what
+    someone writes about. A term appearing in most posts is background language, so it's
+    excluded by document frequency rather than by chasing an endless word list.
+    """
+    filler = "Bu gerçekten yeni bir şekilde gerekiyor artık"
+    topics = ["docker", "docker", "kubernetes", "kubernetes", "postgres", "postgres",
+              "redis", "redis", "nginx", "nginx"]
+    fp = compute_style_profile([f"{filler} {t}" for t in topics])
+
+    assert set(fp.top_terms) == {"docker", "kubernetes", "postgres", "redis", "nginx"}
+    for background in ("gerçekten", "şekilde", "gerekiyor", "artık", "yeni"):
+        assert background not in fp.top_terms
