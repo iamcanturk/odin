@@ -7,6 +7,7 @@ against the database. Designed to be idempotent: re-running never duplicates ite
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 
@@ -32,6 +33,7 @@ from app.pipeline.text import keywords
 from app.pipeline.topics import apply_topic_matching
 from app.pipeline.trend import Mention, advance_status, compute_trend
 from app.providers.base import EmbeddingProvider, LLMProvider
+from app.schemas.ingest import FetchResult
 from app.sources.base import SourceAdapter
 from app.sources.cisa_kev import CISAKevAdapter
 from app.sources.github import GitHubAdapter
@@ -93,18 +95,39 @@ async def _existing_hashes(session: AsyncSession, hashes: list[str]) -> set[str]
     return {r[0] for r in rows}
 
 
-async def poll_source(
-    session: AsyncSession, source: Source, stats: IngestStats
-) -> list[ContentItem]:
-    """Fetch one source and persist new ContentItems. Updates source health."""
+# One slow feed must not eat the whole job's budget.
+PER_SOURCE_TIMEOUT = 25.0
+# Sources are network-bound, so fetching them concurrently is nearly free. Bounded so
+# we don't open 25 sockets at once.
+FETCH_CONCURRENCY = 8
+
+
+async def fetch_source(source: Source) -> FetchResult:
+    """Network only, no DB — so this is safe to run concurrently.
+
+    A single AsyncSession is not safe for concurrent use, which is why fetching and
+    persisting are separate steps rather than one `poll_source` per task.
+    """
     adapter = build_adapter(source)
+    if adapter is None:
+        return FetchResult(status="error", error=f"no adapter for type {source.type}")
+    try:
+        async with asyncio.timeout(PER_SOURCE_TIMEOUT):
+            return await adapter.fetch(
+                etag=source.etag, last_modified=source.last_modified
+            )
+    except TimeoutError:
+        return FetchResult(status="error", error=f"timed out after {PER_SOURCE_TIMEOUT:.0f}s")
+    except Exception as exc:  # noqa: BLE001 - one bad feed must not stop the rest
+        return FetchResult(status="error", error=str(exc))
+
+
+async def apply_result(
+    session: AsyncSession, source: Source, result: FetchResult, stats: IngestStats
+) -> list[ContentItem]:
+    """Persist one fetch result and update the source's health."""
     now = datetime.now(UTC)
     source.last_polled_at = now
-    if adapter is None:
-        stats.errors.append(f"{source.name}: no adapter for type {source.type}")
-        return []
-
-    result = await adapter.fetch(etag=source.etag, last_modified=source.last_modified)
     if result.status != "ok":
         source.failure_count += 1
         stats.errors.append(f"{source.name}: {result.error}")
@@ -145,6 +168,13 @@ async def poll_source(
     stats.items_created += len(created)
     await session.flush()
     return created
+
+
+async def poll_source(
+    session: AsyncSession, source: Source, stats: IngestStats
+) -> list[ContentItem]:
+    """Fetch one source and persist it. Kept for the on-demand single-source endpoint."""
+    return await apply_result(session, source, await fetch_source(source), stats)
 
 
 async def embed_items(items: list[ContentItem], embedder: EmbeddingProvider) -> None:
@@ -368,16 +398,42 @@ async def run_ingestion(
     now = now or datetime.now(UTC)
     stats = IngestStats()
 
+    # Never-polled sources first. Sequential polling plus a job timeout meant the
+    # newest sources sat at the end of the list and were never reached: two CVE feeds
+    # and Pinterest went a full day with last_polled_at still NULL.
     sources = list(
-        (await session.execute(select(Source).where(Source.enabled.is_(True)))).scalars()
+        (
+            await session.execute(
+                select(Source)
+                .where(Source.enabled.is_(True))
+                .order_by(Source.last_polled_at.asc().nullsfirst())
+            )
+        ).scalars()
     )
+
+    # Fetch concurrently (network-bound), then persist sequentially (the session is not
+    # concurrency-safe). 25 sources at up to 25s each was ~500s against a 300s job
+    # timeout, so the job was cancelled every run and the whole transaction rolled back.
+    limiter = asyncio.Semaphore(FETCH_CONCURRENCY)
+
+    async def _fetch(src: Source) -> FetchResult:
+        async with limiter:
+            return await fetch_source(src)
+
+    results = await asyncio.gather(*(_fetch(src) for src in sources))
+
     all_new: list[ContentItem] = []
-    for source in sources:
+    for source, result in zip(sources, results, strict=True):
         stats.sources_polled += 1
         try:
-            all_new.extend(await poll_source(session, source, stats))
+            all_new.extend(await apply_result(session, source, result, stats))
         except Exception as exc:  # noqa: BLE001 - record and continue other sources
             stats.errors.append(f"{source.name}: {exc}")
+
+    # Persist source health BEFORE the expensive clustering pass. Previously a failure
+    # or timeout in processing rolled back every last_polled_at with it, so the health
+    # columns never advanced even on runs that did fetch successfully.
+    await session.commit()
 
     affected = await process_new_items(session, all_new, embedder, stats, llm=llm, now=now)
     await emit_for_events(session, list(affected))

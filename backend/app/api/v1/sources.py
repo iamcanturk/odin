@@ -30,6 +30,9 @@ class SourceItem(BaseModel):
 
     id: uuid.UUID
     title: str | None = None
+    # The article's own opening. 757 of 901 items carry text and none of it was ever
+    # returned, so every card in the feed rendered as a bare headline.
+    summary: str | None = None
     url: str | None = None
     published_at: datetime | None = None
     image: str | None = None
@@ -39,6 +42,21 @@ class SourceItem(BaseModel):
 class DiscoverItem(SourceItem):
     source_name: str
     source_category: str | None = None
+
+
+# Enough to judge whether it's worth opening, not so much that the card becomes a page.
+EXCERPT_CHARS = 400
+
+
+def _excerpt(text: str | None) -> str | None:
+    """Collapse an article's opening into a card-sized lede."""
+    if not text:
+        return None
+    flat = " ".join(text.split())
+    if len(flat) <= EXCERPT_CHARS:
+        return flat or None
+    # Cut on a word boundary so the ellipsis doesn't land mid-word.
+    return flat[:EXCERPT_CHARS].rsplit(" ", 1)[0] + "…"
 
 
 class PollResult(BaseModel):
@@ -110,6 +128,7 @@ async def discover(
             DiscoverItem(
                 id=item.id,
                 title=item.title,
+                summary=_excerpt(item.text),
                 url=item.url,
                 published_at=item.published_at,
                 image=image,
@@ -156,6 +175,7 @@ async def source_items(
             SourceItem(
                 id=item.id,
                 title=item.title,
+                summary=_excerpt(item.text),
                 url=item.url,
                 published_at=item.published_at,
                 image=image,

@@ -427,6 +427,8 @@ const M: Record<string, { tr: string; en: string }> = {
   "nav.you": { tr: "Sen", en: "You" },
   "nav.queue": { tr: "Kuyruk", en: "Queue" },
   "nav.settings": { tr: "Ayarlar", en: "Settings" },
+  "sf.more": { tr: "+{n} kaynak", en: "+{n} sources" },
+  "sf.less": { tr: "daha az", en: "less" },
   "fl.blank": { tr: "Boş tweet", en: "Blank tweet" },
   "fm.select": { tr: "Bunu seç", en: "Use this" },
   "fm.open": { tr: "Kaynağı aç", en: "Open source" },

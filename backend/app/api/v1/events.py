@@ -87,6 +87,48 @@ async def _matched_topics(
     return out
 
 
+# Enough to judge whether it's worth opening, not so much that the card becomes a page.
+EXCERPT_CHARS = 400
+
+
+def _excerpt(text: str | None) -> str | None:
+    if not text:
+        return None
+    flat = " ".join(text.split())
+    if len(flat) <= EXCERPT_CHARS:
+        return flat or None
+    return flat[:EXCERPT_CHARS].rsplit(" ", 1)[0] + "…"
+
+
+async def _excerpts(
+    session: AsyncSession, event_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, str]:
+    """The lede of each event's newest article.
+
+    Only 1 of 1229 events had an LLM summary — summarisation only runs for newly
+    created events, and ingestion had been failing. Meanwhile 757 of 901 items carried
+    perfectly good article text that nothing displayed. This is the fallback, and it's
+    a separate field so a source excerpt is never mistaken for a written summary.
+    """
+    if not event_ids:
+        return {}
+    rows = await session.execute(
+        select(ContentItem.event_id, ContentItem.text)
+        .where(
+            ContentItem.event_id.in_(event_ids),
+            ContentItem.text.is_not(None),
+        )
+        .order_by(ContentItem.published_at.desc().nullslast())
+    )
+    out: dict[uuid.UUID, str] = {}
+    for event_id, text in rows:
+        if event_id in out:
+            continue
+        if excerpt := _excerpt(text):
+            out[event_id] = excerpt
+    return out
+
+
 async def _images(
     session: AsyncSession, event_ids: list[uuid.UUID]
 ) -> dict[uuid.UUID, str]:
@@ -141,6 +183,7 @@ async def list_events(
     min_trend: float = Query(0.0, ge=0.0, le=100.0),
     q: str = Query("", max_length=200),
     category: str = Query("", max_length=64),
+    source_id: uuid.UUID | None = Query(None),
     order_by: str = Query("trend_score", pattern="^(trend_score|opportunity_score|last_seen_at)$"),
 ) -> EventList:
     filters = []
@@ -153,6 +196,17 @@ async def list_events(
         filters.append(Event.trend_score >= min_trend)
     if category.strip():
         filters.append(Event.category == category.strip())
+    if source_id is not None:
+        # "Show me only what BleepingComputer brought in" — the events list could
+        # filter by category but never by the site the story actually came from.
+        filters.append(
+            Event.id.in_(
+                select(ContentItem.event_id).where(
+                    ContentItem.event_id.is_not(None),
+                    ContentItem.source_id == source_id,
+                )
+            )
+        )
     if q.strip():
         # Search the event itself AND the headlines merged into it, so an article that
         # clustered under a different title is still findable.
@@ -189,6 +243,7 @@ async def list_events(
     etopics = await _matched_topics(session, ids)
     eheadlines = await _headlines(session, ids)
     eimages = await _images(session, ids)
+    eexcerpts = await _excerpts(session, ids)
 
     items = []
     for e in events:
@@ -200,6 +255,7 @@ async def list_events(
         summary.topics = etopics.get(e.id, [])
         summary.headlines = eheadlines.get(e.id, [])
         summary.image = eimages.get(e.id)
+        summary.excerpt = eexcerpts.get(e.id)
         items.append(summary)
 
     return EventList(total=total, items=items)

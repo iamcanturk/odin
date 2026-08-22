@@ -110,9 +110,10 @@ async def test_nothing_is_pushed_during_quiet_hours(db_sessionmaker):
 # ---- the absolute floor ----
 
 
-async def test_a_middling_score_does_not_interrupt_you(db_sessionmaker):
-    """The exact production case: 49/100 is not worth a push."""
-    event = await _event(db_sessionmaker, 49.0)
+async def test_a_weak_score_does_not_interrupt_you(db_sessionmaker):
+    """Below the floor nothing gets through, however many are waiting. Volume above
+    the floor is held down by the daily cap and the 90-minute gap, not by the floor."""
+    event = await _event(db_sessionmaker, URGENT_FLOOR - 5)
     await _notify(db_sessionmaker, event)
     async with db_sessionmaker() as session, _patch(_client()):
         stats = await push_urgent(session, TelegramClient("t", "c"), now=NOON)

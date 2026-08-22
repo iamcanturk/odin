@@ -18,6 +18,7 @@ import {
 } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { CadenceStrip } from "@/components/CadenceStrip";
+import { SourceFilter } from "@/components/SourceFilter";
 import { FeedItemModal, type FeedItem } from "@/components/FeedItemModal";
 import { Modal } from "@/components/Modal";
 import { Composer } from "@/components/Composer";
@@ -210,10 +211,14 @@ function EventStream({ onPick }: Picker) {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("");
+  const [sourceId, setSourceId] = useState("");
   const q = search.trim();
 
   // Searching looks across ALL events (no trend floor) so nothing is hidden from you.
-  const queryKey = ["events", { orderBy: "opportunity_score", minTrend: MIN_TREND, q, category }];
+  const queryKey = [
+    "events",
+    { orderBy: "opportunity_score", minTrend: MIN_TREND, q, category, sourceId },
+  ];
   const { data, isLoading, error, refetch } = useQuery({
     queryKey,
     queryFn: () =>
@@ -223,6 +228,7 @@ function EventStream({ onPick }: Picker) {
         minTrend: q ? 0 : MIN_TREND,
         q,
         category,
+        sourceId: sourceId || undefined,
       }),
   });
   const { data: topics } = useQuery({ queryKey: ["topics"], queryFn: fetchTopics });
@@ -254,7 +260,9 @@ function EventStream({ onPick }: Picker) {
   const toItem = (e: EventSummary): FeedItem => ({
     id: e.id,
     title: e.title_local || e.title,
-    body: e.summary,
+    // Only 1 of 1229 events has a written summary, so fall back to the source
+    // article's lede rather than showing a bare headline.
+    body: e.summary || e.excerpt,
     image: e.image,
     category: e.category,
     chips: e.topics,
@@ -291,6 +299,8 @@ function EventStream({ onPick }: Picker) {
           </button>
         ))}
       </div>
+
+      <SourceFilter value={sourceId} onChange={setSourceId} category={category} />
 
       {noTopics && (
         <Panel className="p-4 border-warn/40">
@@ -363,18 +373,6 @@ function RawStream({ onPick }: Picker) {
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
-        <select
-          value={sourceId}
-          onChange={(e) => setSourceId(e.target.value)}
-          className="h-9 rounded-lg border border-border bg-panel-2 px-2 text-sm text-text outline-none focus:border-accent/60"
-        >
-          <option value="">{t("dc.allSources")}</option>
-          {(sources ?? []).map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-            </option>
-          ))}
-        </select>
         {sourceId && (
           <button
             onClick={() => poll.mutate()}
@@ -412,6 +410,8 @@ function RawStream({ onPick }: Picker) {
         ))}
       </div>
 
+      <SourceFilter value={sourceId} onChange={setSourceId} category={category} />
+
       {poll.data && (
         <p className="text-xs text-muted">
           {poll.data.source}: {t("dc.fetched", { n: poll.data.fetched })}
@@ -434,6 +434,7 @@ function RawStream({ onPick }: Picker) {
               item={{
                 id: it.id,
                 title: it.title ?? it.url ?? "",
+                body: it.summary,
                 image: it.image,
                 url: it.url,
                 sourceLabel: it.source_name,
