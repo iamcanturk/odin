@@ -53,6 +53,9 @@ class EventSummary(ORMModel):
     headlines: list[str] = Field(default_factory=list)
     # First image found across the event's items, so the feed isn't a wall of text.
     image: str | None = None
+    # The lede of the newest source article. Kept separate from `summary` so a raw
+    # excerpt is never presented as a written summary.
+    excerpt: str | None = None
 
 
 class EventItem(ORMModel):

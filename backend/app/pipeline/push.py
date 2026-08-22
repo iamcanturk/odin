@@ -36,9 +36,13 @@ from app.providers.telegram import TelegramClient, intent_url
 
 log = structlog.get_logger(__name__)
 
-# Interrupting you needs an absolute bar, not a relative one. A 90th percentile of a
-# weak distribution is still weak.
-URGENT_FLOOR = 60.0
+# Interrupting you needs an absolute bar, not a relative one — a 90th percentile of a
+# weak distribution is still weak. But 60 was set from the wrong distribution: scores
+# topped out at 48 only because ingestion had been dying for a day, so events were
+# stale and single-sourced. 45 sits just above the 46-49 band that was pinging all
+# night, while still letting a genuinely hot event through. The daily cap and the
+# 90-minute gap are what actually keep the volume down.
+URGENT_FLOOR = 45.0
 # Even above the floor: at most this many interruptions a day...
 URGENT_DAILY_CAP = 3
 # ...and never two in quick succession.

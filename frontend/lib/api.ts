@@ -61,6 +61,7 @@ export interface EventSummary {
   topics: string[];
   headlines: string[];
   image: string | null;
+  excerpt: string | null;
 }
 
 export interface EventList {
@@ -111,6 +112,7 @@ export function fetchEvents(params?: {
   minTrend?: number;
   q?: string;
   category?: string;
+  sourceId?: string;
 }): Promise<EventList> {
   const qs = new URLSearchParams();
   qs.set("limit", String(params?.limit ?? 50));
@@ -119,6 +121,7 @@ export function fetchEvents(params?: {
   if (params?.minTrend) qs.set("min_trend", String(params.minTrend));
   if (params?.q?.trim()) qs.set("q", params.q.trim());
   if (params?.category?.trim()) qs.set("category", params.category.trim());
+  if (params?.sourceId) qs.set("source_id", params.sourceId);
   return getJSON<EventList>(`/events?${qs.toString()}`);
 }
 
@@ -367,6 +370,7 @@ export interface Source {
 export interface SourceItem {
   id: string;
   title: string | null;
+  summary: string | null;
   url: string | null;
   published_at: string | null;
   image: string | null;

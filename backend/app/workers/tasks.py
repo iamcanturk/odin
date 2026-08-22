@@ -104,6 +104,10 @@ async def startup(ctx: dict[str, Any]) -> None:
 
 
 class WorkerSettings:
+    # ARQ defaults to 300s. Ingestion polls 25 sources; before they were fetched
+    # concurrently that ceiling was hit every run, the job was cancelled, and the
+    # whole transaction — including every source's last_polled_at — rolled back.
+    job_timeout = 600
     functions = [
         poll_sources,
         process_inbound,
