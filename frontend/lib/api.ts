@@ -819,3 +819,14 @@ export const setWeeklyGoal = (goal: number) =>
 
 export const createPost = (body: { text: string; angle?: string; event_id?: string }) =>
   send<Post>("/posts", "POST", body);
+
+// ---- Per-category style routing ----
+
+export interface StyleMap {
+  mapping: Record<string, string>;
+}
+
+export const fetchStyleMap = () => getJSON<StyleMap>("/compose/style-map");
+
+export const saveStyleMap = (mapping: Record<string, string>) =>
+  send<StyleMap>("/compose/style-map", "PUT", { mapping });
