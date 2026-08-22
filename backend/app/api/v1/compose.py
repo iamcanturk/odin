@@ -25,6 +25,7 @@ from app.pipeline.content import (
     refine_text,
 )
 from app.pipeline.critique import critique
+from app.pipeline.style_routing import get_style_map, set_style_map
 from app.providers.factory import get_llm_provider
 
 router = APIRouter(prefix="/compose", tags=["compose"])
@@ -233,6 +234,31 @@ async def critique_draft(
 class StyleRef(BaseModel):
     handle: str
     samples: int
+
+
+class StyleMapRead(BaseModel):
+    """Which handle's format to borrow, per event category."""
+
+    mapping: dict[str, str] = Field(default_factory=dict)
+
+
+class StyleMapUpdate(BaseModel):
+    mapping: dict[str, str] = Field(default_factory=dict)
+
+
+@router.get("/style-map", response_model=StyleMapRead)
+async def read_style_map(session: AsyncSession = Depends(get_session)) -> StyleMapRead:
+    return StyleMapRead(mapping=await get_style_map(session))
+
+
+@router.put("/style-map", response_model=StyleMapRead)
+async def write_style_map(
+    payload: StyleMapUpdate, session: AsyncSession = Depends(get_session)
+) -> StyleMapRead:
+    """Set it once and every future draft in that category uses the format."""
+    cleaned = await set_style_map(session, payload.mapping)
+    await session.commit()
+    return StyleMapRead(mapping=cleaned)
 
 
 @router.get("/styles", response_model=list[StyleRef])

@@ -24,6 +24,7 @@ from app.models import (
 )
 from app.pipeline.cost import persist_usage
 from app.pipeline.facts import extract_facts, facts_block
+from app.pipeline.style_routing import style_handle_for
 from app.pipeline.xsim import simulate
 from app.providers.base import LLMProvider
 
@@ -650,7 +651,10 @@ async def create_candidates(
     profile = (
         await session.execute(select(StyleProfile).where(StyleProfile.key == "default"))
     ).scalar_one_or_none()
-    style = await style_reference_hint(session, style_handle) if style_handle else ""
+    # An explicit choice always wins; otherwise the category decides. This is what
+    # makes CVE drafts come out in the house format without anyone asking each time.
+    handle = style_handle or await style_handle_for(session, event.category)
+    style = await style_reference_hint(session, handle) if handle else ""
     voice = " ".join(x for x in (_voice_hint(profile), await bio_hint(session)) if x)
 
     drafts = await generate_candidates(

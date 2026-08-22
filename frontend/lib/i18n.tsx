@@ -406,6 +406,19 @@ const M: Record<string, { tr: string; en: string }> = {
     tr: "Ne geliyor, neyi önemsiyorsun, neyi hedefliyorsun, ne kadara mal oluyor",
     en: "What comes in, what you care about, what you're aiming for, what it costs",
   },
+  "st.style": { tr: "Yazım tarzı", en: "Writing style" },
+  "sm.title": { tr: "Kategoriye göre tarz", en: "Style by category" },
+  "sm.hint": {
+    tr: "Bir kategori için hesap seçersen, o kategorideki taslaklar otomatik olarak o hesabın biçimiyle yazılır — cümleleri değil, kurgusu: neyin ilk satıra geldiği, nasıl kapandığı. CVE numaraları ve puanlar her zaman kendi kaynaklarımızdan gelir.",
+    en: "Pick an account for a category and drafts in it are written in that account's format — not their sentences, their structure: what leads, how it closes. CVE numbers and scores always come from our own sources.",
+  },
+  "sm.own": { tr: "Kendi tarzım", en: "My own voice" },
+  "sm.save": { tr: "Kaydet", en: "Save" },
+  "sm.saved": { tr: "Kaydedildi", en: "Saved" },
+  "sm.noRefs": {
+    tr: "Henüz örnek alınmış hesap yok. X'te bir profilde eklentinin \"tarz al\" butonuna bas.",
+    en: "No sampled accounts yet. Use the extension's \"take style\" button on an X profile.",
+  },
   "st.goal": { tr: "Hedef", en: "Goal" },
   "you.title": { tr: "Sen", en: "You" },
   "you.subtitle": {

@@ -5,15 +5,17 @@ import { useI18n } from "@/lib/i18n";
 import { PageHeader } from "@/components/ui";
 import { CadencePanel } from "@/components/CadencePanel";
 import { SourcesPanel } from "@/components/SourcesPanel";
+import { StyleMapPanel } from "@/components/StyleMapPanel";
 import { SystemPanel } from "@/components/SystemPanel";
 import { TopicsPanel } from "@/components/TopicsPanel";
 
-type Tab = "sources" | "topics" | "goal" | "system";
+type Tab = "sources" | "topics" | "goal" | "style" | "system";
 
 const TABS: { key: Tab; labelKey: string }[] = [
   { key: "sources", labelKey: "nav.sources" },
   { key: "topics", labelKey: "nav.topics" },
   { key: "goal", labelKey: "st.goal" },
+  { key: "style", labelKey: "st.style" },
   { key: "system", labelKey: "nav.system" },
 ];
 
@@ -46,6 +48,7 @@ export default function SettingsPage() {
       {tab === "sources" && <SourcesPanel />}
       {tab === "topics" && <TopicsPanel />}
       {tab === "goal" && <CadencePanel editable />}
+      {tab === "style" && <StyleMapPanel />}
       {tab === "system" && <SystemPanel />}
     </div>
   );
