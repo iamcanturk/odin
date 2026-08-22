@@ -15,7 +15,7 @@ from app.core.db import async_session_factory
 from app.core.logging import configure_logging, get_logger
 from app.pipeline.ingest import process_pending, run_ingestion
 from app.pipeline.public_metrics import refresh_public_metrics
-from app.pipeline.push import push_pending
+from app.pipeline.push import push_digest, push_urgent
 from app.pipeline.queue import due_reminders
 from app.pipeline.retention import purge_old_content
 from app.pipeline.style import build_style_profile
@@ -83,11 +83,19 @@ async def refresh_metrics(ctx: dict[str, Any]) -> dict[str, Any]:
 
 
 async def push_notifications(ctx: dict[str, Any]) -> dict[str, Any]:
-    """Mirror notifications to Telegram. A dead channel must not break the pipeline."""
+    """Interrupt you only when it's earned — with the tweet already written."""
     async with async_session_factory() as session:
-        stats = await push_pending(session, get_telegram())
+        stats = await push_urgent(session, get_telegram(), llm=get_llm_provider())
         await session.commit()
-    return {"sent": stats.sent, "errors": stats.errors}
+    return {"sent": stats.sent, "skipped": stats.skipped_reason, "errors": stats.errors}
+
+
+async def push_daily_digest(ctx: dict[str, Any]) -> dict[str, Any]:
+    """Everything that didn't earn an interruption, once a day in one message."""
+    async with async_session_factory() as session:
+        stats = await push_digest(session, get_telegram(), llm=get_llm_provider())
+        await session.commit()
+    return {"digested": stats.digested, "skipped": stats.skipped_reason}
 
 
 async def startup(ctx: dict[str, Any]) -> None:
@@ -104,6 +112,7 @@ class WorkerSettings:
         fire_reminders,
         refresh_metrics,
         push_notifications,
+        push_daily_digest,
     ]
     on_startup = startup
     redis_settings = RedisSettings.from_dsn(get_settings().redis_url)
@@ -114,5 +123,6 @@ class WorkerSettings:
         cron(refresh_style, hour={5}, minute={0}),  # relearn your voice daily
         cron(fire_reminders, minute={0, 10, 20, 30, 40, 50}),  # queued drafts come due
         cron(refresh_metrics, minute={5, 25, 45}),  # own-post likes/replies, extension-free
-        cron(push_notifications, minute={2, 12, 22, 32, 42, 52}),  # alerts to your phone
+        cron(push_notifications, minute={5, 35}),  # urgent only, heavily throttled
+        cron(push_daily_digest, minute={0}),  # fires hourly; the pipeline picks the hour
     ]
