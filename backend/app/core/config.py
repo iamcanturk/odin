@@ -55,6 +55,9 @@ class Settings(BaseSettings):
     # Where Telegram should send updates, and where the bot's links point.
     public_base_url: str = "https://odin.iamcanturk.dev"
 
+    # Quiet hours and the daily digest are in YOUR local time, not the server's.
+    push_timezone: str = "Europe/Istanbul"
+
     # Reddit app-only OAuth. Without these the adapter falls back to the anonymous
     # JSON endpoint, which 403s from datacenter IPs.
     reddit_client_id: str = ""
