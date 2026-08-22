@@ -24,6 +24,10 @@ from app.providers.telegram import get_telegram
 
 log = get_logger("odin.worker")
 
+# Small enough that one pass finishes well inside the job timeout. Clustering and
+# summarisation are LLM-bound, so this is a throughput knob, not a memory one.
+INBOUND_BATCH = 40
+
 
 async def poll_sources(ctx: dict[str, Any]) -> dict[str, Any]:
     async with async_session_factory() as session:
@@ -43,7 +47,7 @@ async def process_inbound(ctx: dict[str, Any]) -> dict[str, Any]:
     """Process inbound (browser-extension) items the API stored without embedding."""
     async with async_session_factory() as session:
         stats = await process_pending(
-            session, get_embedding_provider(), llm=get_llm_provider()
+            session, get_embedding_provider(), llm=get_llm_provider(), limit=INBOUND_BATCH
         )
     return {"items": stats.items_created, "events_created": stats.events_created}
 
@@ -122,7 +126,9 @@ class WorkerSettings:
     redis_settings = RedisSettings.from_dsn(get_settings().redis_url)
     cron_jobs = [
         cron(poll_sources, minute={0, 15, 30, 45}),  # poll sources every 15 min
-        cron(process_inbound, second={0, 30}),  # process inbound items ~every 30s
+        # Every 30s was wishful: a run summarises and clusters a backlog with LLM
+        # calls and took 366s, so ten runs stacked up and starved every other cron.
+        cron(process_inbound, minute=set(range(0, 60, 2))),  # every 2 minutes
         cron(purge_stale, hour={4}, minute={20}),  # nightly cleanup, off-peak
         cron(refresh_style, hour={5}, minute={0}),  # relearn your voice daily
         cron(fire_reminders, minute={0, 10, 20, 30, 40, 50}),  # queued drafts come due
